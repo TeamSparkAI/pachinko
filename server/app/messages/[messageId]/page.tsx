@@ -211,20 +211,20 @@ export default function MessageDetailsPage() {
         const sortedModifcations = [...appliedFieldModEvents].sort((a, b) => (b.contentModification as AppliedFieldModification).jsonResultStart! - (a.contentModification! as AppliedFieldModification).jsonResultStart!);
           
         let highlightedString = modifiedPayload;
-        let offset = 0;
-        
+
+        // Sorted descending by start: each insert is strictly to the right of later iterations,
+        // so indices stay valid in the current string — do not apply a cumulative offset (that
+        // pattern is only for ascending / left-to-right insertion).
         for (const modification of sortedModifcations) {
-          // Find the corresponding position in the formatted JSON
           const contentModification = modification.contentModification as AppliedFieldModification;
-          let formattedStart = contentModification.jsonResultStart!;
-          let formattedEnd = contentModification.jsonResultEnd!;
-          
+          const formattedStart = contentModification.jsonResultStart!;
+          const formattedEnd = contentModification.jsonResultEnd!;
+
           if (formattedStart !== -1 && formattedEnd !== -1) {
-            const before = highlightedString.substring(0, formattedStart + offset);
-            const replacement = highlightedString.substring(formattedStart + offset, formattedEnd + offset);
-            const after = highlightedString.substring(formattedEnd + offset);
+            const before = highlightedString.substring(0, formattedStart);
+            const replacement = highlightedString.substring(formattedStart, formattedEnd);
+            const after = highlightedString.substring(formattedEnd);
             highlightedString = `${before}<mark class="bg-red-200 text-red-800 px-1 rounded">${replacement}</mark>${after}`;
-            offset += '<mark class="bg-red-200 text-red-800 px-1 rounded"></mark>'.length;
           }
         }
         
@@ -246,23 +246,21 @@ export default function MessageDetailsPage() {
 
     const resolvedFindings = resolveFindings(formattedPayload, alert.findings);
 
-    // Sort findings by start position in reverse order to avoid position shifts
+    // Sort findings by start position in reverse order so each insert lies to the right of
+    // remaining ranges; original resolved indices then stay valid on `highlightedString`.
     const sortedFindings = [...resolvedFindings].sort((a, b) => b.resolvedStart - a.resolvedStart);
 
     let highlightedString = formattedPayload;
-    let offset = 0;
 
     for (const finding of sortedFindings) {
-      // Find the corresponding position in the formatted JSON
-      let formattedStart = finding.resolvedStart;
-      let formattedEnd = finding.resolvedEnd;
-      
+      const formattedStart = finding.resolvedStart;
+      const formattedEnd = finding.resolvedEnd;
+
       if (formattedStart !== -1 && formattedEnd !== -1) {
-        const before = highlightedString.substring(0, formattedStart + offset);
-        const finding = highlightedString.substring(formattedStart + offset, formattedEnd + offset);
-        const after = highlightedString.substring(formattedEnd + offset);
-        highlightedString = `${before}<mark class="bg-yellow-200">${finding}</mark>${after}`;
-        offset += '<mark class="bg-yellow-200"></mark>'.length;
+        const before = highlightedString.substring(0, formattedStart);
+        const matchedSlice = highlightedString.substring(formattedStart, formattedEnd);
+        const after = highlightedString.substring(formattedEnd);
+        highlightedString = `${before}<mark class="bg-yellow-200">${matchedSlice}</mark>${after}`;
       }
     }
 

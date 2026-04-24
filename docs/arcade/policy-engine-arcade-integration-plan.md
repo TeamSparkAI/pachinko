@@ -108,6 +108,32 @@ We **reuse**:
 - **`execution_id`** — Primary correlation between pre and post for one tool run (replace or supplement MCP-style session + JSON-RPC `id` pairing).
 - **Analytics / forensics** — At minimum: `userId` from `context.user_id`, tool name / toolkit / version from `tool`, **`origin`**, `execution_id`, timestamps, policy hits, alert ids. **Tenant / server binding** for Arcade can stay a single configured integration unless product requires more (defer detail to **§11**).
 
+### 6.1 Persisted `messages` columns ↔ Arcade wire fields
+
+The **`messages`** table is defined in `server/appData/migrations/002_initial_tables_v2.sql`. Below is how each stored column is populated for **Arcade pre/post** ingress (see concrete request bodies in [`payloads.md`](./payloads.md)). Values are after **synthetic JSON-RPC** construction and **policy** application unless noted.
+
+| Pachinko column | Arcade **pre** (`PreHookRequest`) | Arcade **post** (`PostHookRequest`) | Notes |
+|------------------|-----------------------------------|--------------------------------------|--------|
+| **`messageId`** | — | — | Surrogate primary key (auto). |
+| **`timestamp`** | Set when the pre hook row is created | Set on orphan **server** insert if no matching pre row | Wall-clock ingest time, not an Arcade-supplied instant. |
+| **`timestampResult`** | `NULL` on pre create | Set when a **matching** pre row is updated with the post response | Update keyed by `sessionId` + `payloadMessageId` = `execution_id`. |
+| **`origin`** | Always **`client`** | Always **`server`** | Encodes hook direction (§2.1). |
+| **`userId`** | `context.user_id` | Same | Falls back to e.g. `'unknown'` if missing. |
+| **`clientId`** | — | — | Not present on Arcade wire; from **`MessageFilterContext`** (often `NULL` for synthetic Arcade context). |
+| **`sourceIP`** | — | — | Not on Arcade body; synthetic context uses a placeholder (e.g. **`arcade`**). |
+| **`serverId`** | — | — | Not on Arcade body; synthetic Arcade context may use **`0`** / null per implementation. |
+| **`serverName`** | — | — | Not on Arcade body; synthetic label (e.g. **`Arcade`**). |
+| **`sessionId`** | **`execution_id`** | **`execution_id`** | Correlates pre and post for one tool run. |
+| **`payloadMessageId`** | **`execution_id`** | **`execution_id`** | Same value as JSON-RPC **`id`** on the synthetic message. |
+| **`payloadMethod`** | **`tools/call`** on the synthetic pre request | Usually empty on the synthetic **response** row | Post is modeled as JSON-RPC **result** / **error**, not a named method. |
+| **`payloadToolName`** | **`tool.name`** | **`tool.name`** on orphan server create; may be empty on update-only path | Taken from synthetic **`params.name`** where that exists; **`tool`** is on every Arcade body. |
+| **`payloadParams`** | Object from synthetic **`params`** (see §3.1: MCP-shaped `{ name, arguments }` with **`arguments`** ← **`inputs`**) | Unchanged on **update** of the pre row | Logical source of tool inputs is always Arcade **`inputs`** ([`payloads.md`](./payloads.md)). |
+| **`payloadResult`** | `NULL` at pre create | Synthetic JSON-RPC **`result`** after policy (source: Arcade **`output`** on success) | On successful post, the matched pre row is **updated** with this column. |
+| **`payloadError`** | `NULL` at pre create | `{ code, message }` when the synthetic message is JSON-RPC **error** (e.g. failed post → Arcade **`execution_error`** text) | Success post leaves this unset on update. |
+| **`createdAt`** | — | — | DB default. |
+
+**Not stored as first-class columns** (today): full **`context`** (authorization, `secrets`, etc.), **`tool.toolkit`**, **`tool.version`**, **`tool.metadata`**, **`success`**, **`execution_code`**, optional post **`inputs`**. Those exist only inside JSON blobs if a policy copies them into **`params`** / **`result`**; otherwise they are visible in raw webhook logs only.
+
 **Alerts:** Keep **`origin`** as `client` / `server`; optional UI labels **Pre (client)** / **Post (server)**.
 
 ---

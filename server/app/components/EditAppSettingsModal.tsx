@@ -68,8 +68,8 @@ export default function EditAppSettingsModal({ settings, onSave, onCancel }: Edi
             className="w-full p-2 border rounded font-mono text-sm"
           />
           <p className="text-xs text-gray-500 mt-1">
-            When set, MCP filter webhooks require <code className="text-xs bg-gray-100 px-1 rounded">Authorization: Bearer</code> with this
-            value. Identity for each request is sent as JSON <code className="text-xs bg-gray-100 px-1 rounded">context</code> (see API docs).
+            When set, Arcade Engine policy webhooks (<code className="text-xs bg-gray-100 px-1 rounded">/api/v1/webhooks/…</code>) require{' '}
+            <code className="text-xs bg-gray-100 px-1 rounded">Authorization: Bearer</code> with this value.
           </p>
         </div>
 

@@ -1,23 +1,70 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { MessageFilterService } from '@/lib/services/messageFilter';
-import { validateJsonRpcMessage } from '@/lib/jsonrpc';
+import { JsonRpcValidationError, validateJsonRpcMessage } from '@/lib/jsonrpc';
 import { JsonResponse } from '@/lib/jsonResponse';
 import { logger } from '@/lib/logging/server';
 import { ModelFactory } from '@/lib/models';
 import { MessageFilterContext } from '@/lib/types/messageFilterContext';
+import {
+  isPlainJsonObject,
+  isArcadeEnginePrePayload,
+  isArcadeEnginePostPayload,
+  isArcadeEnginePostPayloadWithoutInputs,
+  arcadePreToJsonRpcRequest,
+  arcadePostFailureToJsonRpc,
+  arcadePostOutputToResultShape,
+  arcadePostSuccessToJsonRpc,
+  mapProcessedJsonRpcToArcadePreResult,
+  mapProcessedJsonRpcToArcadePostResult,
+} from '@/lib/types/arcadeWebhook';
+import type { ArcadePostHookRequest, ArcadePreHookRequest } from '@/lib/types/arcadeWebhook';
 
-export type McpWebhookDirection = 'client' | 'server';
+export type ArcadeWebhookDirection = 'client' | 'server';
 
-export interface McpWebhookRequestBody {
-  sessionId?: string;
-  message: unknown;
-  /** Optional; when present and `message.method` is `tools/call`, must equal `message.params.name`. */
-  toolName?: string;
-  /** Ignored for routing; if sent, must match the endpoint direction. */
-  origin?: string;
-  /** Session and user context; `serverToken` must match the server registered for `serverId`. */
-  context?: unknown;
+/** Synthetic `MessageFilterContext` for Arcade-only webhooks (no MCP server binding). */
+const ARCADE_SYNTHETIC_SERVER_ID = 0;
+
+function syntheticMessageFilterContextForArcade(
+  arcadeContext: ArcadePreHookRequest['context'] | ArcadePostHookRequest['context']
+): MessageFilterContext {
+  const user =
+    typeof arcadeContext.user_id === 'string' && arcadeContext.user_id.trim().length > 0
+      ? arcadeContext.user_id.trim()
+      : 'unknown';
+  return {
+    user,
+    sourceIp: 'arcade',
+    serverToken: '',
+    serverName: 'Arcade',
+    serverId: ARCADE_SYNTHETIC_SERVER_ID,
+    clientId: null,
+  };
+}
+
+/** Log + return JSON error (never silent 4xx/5xx). */
+function jsonErrorResponse(hookLabel: string, status: number, message: string, extra?: string): Response {
+  const suffix = extra ? ` ${extra}` : '';
+  console.warn('[Arcade webhook]', hookLabel, 'response', status, message + suffix);
+  return JsonResponse.errorResponse(status, message);
+}
+
+/** Safe request summary (no tokens / no full payloads). */
+function summarizeWebhookBody(body: unknown, rawByteLength: number): string {
+  if (!isPlainJsonObject(body)) {
+    return JSON.stringify({ rawBytes: rawByteLength, bodyType: typeof body });
+  }
+  const tool = body.tool;
+  const toolName =
+    isPlainJsonObject(tool) && typeof tool.name === 'string' ? tool.name : undefined;
+  return JSON.stringify({
+    rawBytes: rawByteLength,
+    topLevelKeys: Object.keys(body),
+    execution_id: typeof body.execution_id === 'string' ? body.execution_id : undefined,
+    toolName,
+    hasInputs: 'inputs' in body,
+    success: typeof body.success === 'boolean' ? body.success : undefined,
+  });
 }
 
 function bearerMatchesConfiguredSecret(authHeader: string | null, secret: string): boolean {
@@ -30,76 +77,59 @@ function bearerMatchesConfiguredSecret(authHeader: string | null, secret: string
   return timingSafeEqual(a, b);
 }
 
-function timingSafeStringEq(a: string, b: string): boolean {
-  const x = Buffer.from(a, 'utf8');
-  const y = Buffer.from(b, 'utf8');
-  if (x.length !== y.length) {
-    return false;
-  }
-  return timingSafeEqual(x, y);
-}
-
-function parseMessageFilterContext(raw: unknown): MessageFilterContext | Response {
-  if (raw === undefined || raw === null || typeof raw !== 'object') {
-    return JsonResponse.errorResponse(400, 'Missing or invalid context object in body');
-  }
-  const c = raw as Record<string, unknown>;
-
-  if (typeof c.serverId !== 'number' || !Number.isInteger(c.serverId)) {
-    return JsonResponse.errorResponse(400, 'context.serverId must be an integer');
-  }
-  if (typeof c.serverToken !== 'string' || !c.serverToken.trim()) {
-    return JsonResponse.errorResponse(400, 'context.serverToken must be a non-empty string');
-  }
-  if (typeof c.user !== 'string') {
-    return JsonResponse.errorResponse(400, 'context.user must be a string');
-  }
-  if (typeof c.sourceIp !== 'string') {
-    return JsonResponse.errorResponse(400, 'context.sourceIp must be a string');
-  }
-  if (typeof c.serverName !== 'string') {
-    return JsonResponse.errorResponse(400, 'context.serverName must be a string');
-  }
-
-  let clientId: number | null;
-  if (c.clientId === null || c.clientId === undefined) {
-    clientId = null;
-  } else if (typeof c.clientId === 'number' && Number.isInteger(c.clientId)) {
-    clientId = c.clientId;
-  } else {
-    return JsonResponse.errorResponse(400, 'context.clientId must be an integer or null');
-  }
-
-  return {
-    serverId: c.serverId,
-    serverToken: c.serverToken.trim(),
-    user: c.user,
-    sourceIp: c.sourceIp,
-    serverName: c.serverName,
-    clientId
-  };
+function looksLikeArcadePreOnlyOnPostUrl(body: Record<string, unknown>): boolean {
+  return (
+    'inputs' in body &&
+    !('output' in body) &&
+    !('success' in body) &&
+    !('execution_code' in body) &&
+    !('execution_error' in body)
+  );
 }
 
 /**
- * Shared handler for MCP policy webhooks: `pre` = client→server, `post` = server→client.
+ * Arcade.dev Engine policy webhooks (`/webhooks/arcade/pre` = pre, `/webhooks/arcade/post` = post).
+ *
+ * **Body:** Exactly the Arcade Engine JSON (`docs/arcade/webhook.yaml`). No Pachinko-only fields.
  *
  * **Optional API secret:** When `filterApiBearerToken` is set, require `Authorization: Bearer <token>`.
- * When it is empty, the endpoint does not require that header.
  *
- * **Identity:** JSON `context` (user, sourceIp, serverId, serverToken, serverName, clientId) is required;
- * `serverToken` must match the stored token for `serverId`, and `serverName` must match the registered name.
+ * **Response:** Native Arcade `PreHookResult` / `PostHookResult` JSON (HTTP 200).
  */
-export async function handleMcpWebhookFilter(
+export async function handleArcadeFilterWebhook(
   request: NextRequest,
-  direction: McpWebhookDirection
+  direction: ArcadeWebhookDirection
 ): Promise<Response> {
+  const hookLabel = direction === 'client' ? 'pre' : 'post';
+  console.log('[Arcade webhook]', hookLabel, request.method, new URL(request.url).pathname);
+
   try {
-    let body: McpWebhookRequestBody;
-    try {
-      body = (await request.json()) as McpWebhookRequestBody;
-    } catch {
-      return JsonResponse.errorResponse(400, 'Invalid JSON body');
+    const rawText = await request.text();
+    const maxRawLog = 8192;
+    if (!rawText.trim()) {
+      return jsonErrorResponse(
+        hookLabel,
+        400,
+        'Empty request body. Arcade must POST JSON per docs/arcade/webhook.yaml.',
+        `(rawBytes=0)`
+      );
     }
+    console.log(
+      '[Arcade webhook]',
+      hookLabel,
+      'raw JSON (may include secrets; truncated):',
+      rawText.length > maxRawLog ? `${rawText.slice(0, maxRawLog)}\n… [truncated ${rawText.length - maxRawLog} chars]` : rawText
+    );
+
+    let body: unknown;
+    try {
+      body = JSON.parse(rawText) as unknown;
+    } catch (e) {
+      const hint = e instanceof Error ? e.message : String(e);
+      return jsonErrorResponse(hookLabel, 400, 'Invalid JSON body', `(parse: ${hint})`);
+    }
+
+    console.log('[Arcade webhook]', hookLabel, 'parsed summary', summarizeWebhookBody(body, rawText.length));
 
     const appSettingsModel = await ModelFactory.getInstance().getAppSettingsModel();
     const appSettings = await appSettingsModel.get();
@@ -109,77 +139,113 @@ export async function handleMcpWebhookFilter(
 
     if (configuredSecret) {
       if (!bearerMatchesConfiguredSecret(authHeader, configuredSecret)) {
-        return JsonResponse.errorResponse(401, 'Unauthorized');
+        return jsonErrorResponse(hookLabel, 401, 'Unauthorized', '(bearer does not match filterApiBearerToken)');
       }
     }
 
-    const parsed = parseMessageFilterContext(body.context);
-    if (parsed instanceof Response) {
-      return parsed;
-    }
-    const ctx = parsed;
-
-    const serverModel = await ModelFactory.getInstance().getServerModel();
-    const server = await serverModel.findById(ctx.serverId);
-    if (!server) {
-      return JsonResponse.errorResponse(400, 'Unknown server');
-    }
-    if (!server.enabled) {
-      return JsonResponse.errorResponse(403, `Server ${server.name} is disabled`);
-    }
-    if (!timingSafeStringEq(server.token, ctx.serverToken)) {
-      return JsonResponse.errorResponse(401, 'Invalid server token');
-    }
-    if (!timingSafeStringEq(server.name, ctx.serverName)) {
-      return JsonResponse.errorResponse(400, 'context.serverName does not match registered server name');
-    }
-
-    const payload: MessageFilterContext = {
-      user: ctx.user,
-      sourceIp: ctx.sourceIp,
-      serverToken: server.token,
-      serverName: server.name,
-      serverId: server.serverId,
-      clientId: ctx.clientId
-    };
-
-    const { message, toolName } = body;
-    const sessionId = typeof body.sessionId === 'string' ? body.sessionId : '';
-
-    if (message === undefined || message === null) {
-      return JsonResponse.errorResponse(400, 'Missing message');
-    }
-
-    if (body.origin !== undefined && body.origin !== direction) {
-      return JsonResponse.errorResponse(
-        400,
-        `Body origin must match this endpoint (${direction} for ${direction === 'client' ? 'pre' : 'post'}), or be omitted`
-      );
-    }
-
-    if (toolName !== undefined) {
-      if (typeof toolName !== 'string') {
-        return JsonResponse.errorResponse(400, 'toolName must be a string when provided');
-      }
-      const msg = message as Record<string, unknown>;
-      if (msg.method === 'tools/call') {
-        const params = msg.params as Record<string, unknown> | undefined;
-        const name = params?.name;
-        if (typeof name !== 'string' || name !== toolName) {
-          return JsonResponse.errorResponse(400, 'toolName must match message.params.name for tools/call');
+    if (direction === 'client') {
+      if (isArcadeEnginePrePayload(body)) {
+        const filterPayload = syntheticMessageFilterContextForArcade(body.context);
+        console.log(
+          '[Arcade webhook]',
+          hookLabel,
+          'using synthetic MessageFilterContext',
+          JSON.stringify({
+            serverName: filterPayload.serverName,
+            serverId: filterPayload.serverId,
+            user: filterPayload.user,
+          })
+        );
+        const rpc = arcadePreToJsonRpcRequest(body);
+        const validatedMessage = validateJsonRpcMessage('client', rpc);
+        const result = await MessageFilterService.processMessage(filterPayload, body.execution_id, validatedMessage);
+        if (!result.success) {
+          return jsonErrorResponse(
+            hookLabel,
+            400,
+            result.error ?? 'Policy processing failed',
+            '(MessageFilterService.processMessage)'
+          );
         }
+        const preOut = mapProcessedJsonRpcToArcadePreResult(body.inputs, result.message);
+        console.log('[Arcade webhook]', hookLabel, 'response', 200, JSON.stringify(preOut));
+        return NextResponse.json(preOut);
       }
-    }
+      if (isArcadeEnginePostPayloadWithoutInputs(body)) {
+        return jsonErrorResponse(
+          hookLabel,
+          400,
+          'This URL is for Arcade pre-hooks only (body must include `inputs`). Use POST /webhooks/arcade/post for post-hooks.',
+          '(wrong hook shape for /pre)'
+        );
+      }
+      return jsonErrorResponse(
+        hookLabel,
+        400,
+        'Invalid Arcade pre-hook request body',
+        '(expected execution_id, tool, inputs, context per docs/arcade/webhook.yaml)'
+      );
+    } else if (direction === 'server') {
+      if (isPlainJsonObject(body) && looksLikeArcadePreOnlyOnPostUrl(body)) {
+        return jsonErrorResponse(
+          hookLabel,
+          400,
+          'This URL is for Arcade post-hooks only. Use POST /webhooks/arcade/pre for pre-hooks.',
+          '(pre-only body on /post)'
+        );
+      }
+      if (isArcadeEnginePostPayload(body)) {
+        const filterPayload = syntheticMessageFilterContextForArcade(body.context);
+        console.log(
+          '[Arcade webhook]',
+          hookLabel,
+          'using synthetic MessageFilterContext',
+          JSON.stringify({
+            serverName: filterPayload.serverName,
+            serverId: filterPayload.serverId,
+            user: filterPayload.user,
+          })
+        );
 
-    const validatedMessage = validateJsonRpcMessage(direction, message);
-    const result = await MessageFilterService.processMessage(payload, sessionId, validatedMessage);
-
-    if (result.success) {
-      return JsonResponse.payloadResponse('message', result.message);
+        let shape;
+        let rpc;
+        if (body.success === false) {
+          rpc = arcadePostFailureToJsonRpc(body);
+          shape = arcadePostOutputToResultShape(undefined);
+        } else {
+          shape = arcadePostOutputToResultShape(body.output);
+          rpc = arcadePostSuccessToJsonRpc(body.execution_id, shape);
+        }
+        const validatedMessage = validateJsonRpcMessage('server', rpc);
+        const result = await MessageFilterService.processMessage(filterPayload, body.execution_id, validatedMessage);
+        if (!result.success) {
+          return jsonErrorResponse(
+            hookLabel,
+            400,
+            result.error ?? 'Policy processing failed',
+            '(MessageFilterService.processMessage)'
+          );
+        }
+        const postOut = mapProcessedJsonRpcToArcadePostResult(shape, result.message);
+        console.log('[Arcade webhook]', hookLabel, 'response', 200, JSON.stringify(postOut));
+        return NextResponse.json(postOut);
+      }
+      return jsonErrorResponse(
+        hookLabel,
+        400,
+        'Invalid Arcade post-hook request body',
+        '(expected execution_id, tool, context per docs/arcade/webhook.yaml)'
+      );
+    } else {
+      const unreachable: never = direction;
+      throw new Error(`Unhandled webhook direction: ${String(unreachable)}`);
     }
-    return JsonResponse.errorResponse(400, result.error);
   } catch (error) {
-    logger.error('Error in MCP webhook filter:', error);
-    return JsonResponse.errorResponse(500, 'Internal server error');
+    if (error instanceof JsonRpcValidationError) {
+      return jsonErrorResponse(hookLabel, 400, error.message, '(JsonRpcValidationError)');
+    }
+    logger.error('Error in Arcade filter webhook:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    return jsonErrorResponse(hookLabel, 500, 'Internal server error', `(exception: ${detail})`);
   }
 }

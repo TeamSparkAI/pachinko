@@ -18,7 +18,7 @@ tags:
   - name: Messages
     description: Message management
   - name: Webhooks
-    description: Authenticated HTTP webhooks for MCP message filtering (policy engine)
+    description: Authenticated Arcade Engine policy webhooks (pre/post)
   - name: Policies
     description: Policy management
   - name: Alerts
@@ -419,6 +419,124 @@ components:
           nullable: true
           description: Client id when applicable, or null
 
+    ArcadeToolInfo:
+      type: object
+      required:
+        - name
+        - toolkit
+        - version
+      properties:
+        name:
+          type: string
+        toolkit:
+          type: string
+        version:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ArcadeToolContext:
+      type: object
+      additionalProperties: true
+      properties:
+        user_id:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        secrets:
+          type: array
+          items:
+            type: string
+
+    ArcadeFilterPreRequest:
+      type: object
+      required:
+        - execution_id
+        - tool
+        - inputs
+        - context
+      properties:
+        execution_id:
+          type: string
+        tool:
+          $ref: '#/components/schemas/ArcadeToolInfo'
+        inputs:
+          type: object
+          additionalProperties: true
+        context:
+          $ref: '#/components/schemas/ArcadeToolContext'
+
+    ArcadeFilterPostRequest:
+      type: object
+      required:
+        - execution_id
+        - tool
+        - context
+      properties:
+        execution_id:
+          type: string
+        tool:
+          $ref: '#/components/schemas/ArcadeToolInfo'
+        context:
+          $ref: '#/components/schemas/ArcadeToolContext'
+        inputs:
+          type: object
+          additionalProperties: true
+        success:
+          type: boolean
+        output:
+          description: Tool output (any JSON type)
+        execution_code:
+          type: string
+        execution_error:
+          type: string
+
+    ArcadeHookResponseCode:
+      type: string
+      enum:
+        - OK
+        - CHECK_FAILED
+        - RATE_LIMIT_EXCEEDED
+
+    ArcadePreHookResult:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          $ref: '#/components/schemas/ArcadeHookResponseCode'
+        error_message:
+          type: string
+        override:
+          type: object
+          properties:
+            inputs:
+              type: object
+              additionalProperties: true
+            secrets:
+              type: array
+              items:
+                type: object
+                additionalProperties:
+                  type: string
+
+    ArcadePostHookResult:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          $ref: '#/components/schemas/ArcadeHookResponseCode'
+        error_message:
+          type: string
+        override:
+          type: object
+          properties:
+            output:
+              description: Overridden tool output (any JSON type)
+
     Client:
       type: object
       properties:
@@ -797,7 +915,7 @@ components:
       type: object
       description: >
         Legacy fields requireClientToken and strictServerAccess are removed from the product.
-        MCP filter webhooks may optionally require a shared API bearer (app setting filterApiBearerToken); see /webhooks/mcp/pre and /webhooks/mcp/post.
+        Arcade Engine policy webhooks may optionally require a shared API bearer (app setting filterApiBearerToken); see /webhooks/arcade/pre and /webhooks/arcade/post.
       additionalProperties: true
 
     ComplianceData:
@@ -1439,54 +1557,31 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /webhooks/mcp/pre:
+  /webhooks/arcade/pre:
     post:
       tags:
         - Webhooks
-      summary: MCP pre-hook (client → server)
+      summary: Arcade Engine pre-hook (policy)
       description: |
-        Client-originated JSON-RPC (e.g. `tools/call`). Direction is fixed by this URL (`client`).
+        Accepts an Arcade.dev **pre-hook** request body exactly as in `docs/arcade/webhook.yaml` (no Pachinko-only fields).
 
         **Optional API secret:** When app setting `filterApiBearerToken` is non-empty, send
         `Authorization: Bearer <filterApiBearerToken>`. When it is empty, no `Authorization` header is required.
 
-        **Identity:** Every request must include JSON field `context` (`MessageFilterContext`). The server token
-        and name are checked against the registered server for `serverId`.
-
-        Tool identity is in `message` (and optional redundant `toolName` for `tools/call`).
+        **Response:** Native Arcade `PreHookResult` (HTTP 200), not the JSON-API `{ meta, ... }` envelope.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - message
-                - context
-              properties:
-                sessionId:
-                  type: string
-                  description: Correlates server responses to client requests
-                message:
-                  type: object
-                  description: JSON-RPC 2.0 object
-                toolName:
-                  type: string
-                  description: Optional; if set and method is tools/call, must match message.params.name
-                context:
-                  $ref: '#/components/schemas/MessageFilterContext'
+              $ref: '#/components/schemas/ArcadeFilterPreRequest'
       responses:
         '200':
-          description: Message processed successfully
+          description: Arcade pre-hook result
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  meta:
-                    $ref: '#/components/schemas/Meta'
-                  message:
-                    type: object
+                $ref: '#/components/schemas/ArcadePreHookResult'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1494,43 +1589,29 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /webhooks/mcp/post:
+  /webhooks/arcade/post:
     post:
       tags:
         - Webhooks
-      summary: MCP post-hook (server → client)
+      summary: Arcade Engine post-hook (policy)
       description: |
-        Server-originated JSON-RPC (e.g. tool result). Direction is fixed by this URL (`server`).
-        Same optional `Authorization` bearer and required `context` as `/webhooks/mcp/pre`.
+        Accepts an Arcade.dev **post-hook** request body exactly as in `docs/arcade/webhook.yaml`.
+        Same optional `Authorization` bearer as the pre-hook.
+
+        **Response:** Native Arcade `PostHookResult` (HTTP 200).
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - message
-                - context
-              properties:
-                sessionId:
-                  type: string
-                message:
-                  type: object
-                  description: JSON-RPC 2.0 object
-                context:
-                  $ref: '#/components/schemas/MessageFilterContext'
+              $ref: '#/components/schemas/ArcadeFilterPostRequest'
       responses:
         '200':
-          description: Message processed successfully
+          description: Arcade post-hook result
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  meta:
-                    $ref: '#/components/schemas/Meta'
-                  message:
-                    type: object
+                $ref: '#/components/schemas/ArcadePostHookResult'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

@@ -1,6 +1,8 @@
 /**
- * Caller-supplied context for MCP filter webhooks (plain JSON, no proxy JWT).
- * The server token is verified against the registered server for `serverId`.
+ * Context passed into the message filter / policy pipeline.
+ *
+ * Arcade Engine webhooks do not use MCP servers: the handler supplies a **synthetic** context
+ * (`serverName` / `serverId` / `serverToken`) so persistence and policies keep working.
  */
 export interface MessageFilterContext {
   user: string;
