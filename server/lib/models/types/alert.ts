@@ -1,5 +1,4 @@
 import { MessageOrigin } from "@/lib/jsonrpc";
-import { ClientType } from "@/lib/types/clientType";
 import { PolicyCondition } from "@/lib/models/types/policy";
 import { Finding } from "@/lib/policy-engine/types/core";
 
@@ -8,8 +7,8 @@ export interface AlertData {
     messageId: number;
     policyId: number;
     origin: MessageOrigin;
-    condition: PolicyCondition;  // The condition that triggered this alert
-    findings: Finding[];         // The findings from the condition
+    condition: PolicyCondition;
+    findings: Finding[];
     timestamp: string;
     createdAt: string;
     seenAt: string | null;
@@ -17,9 +16,9 @@ export interface AlertData {
 
 export interface AlertReadData extends AlertData {
     policySeverity: number;
-    serverId: number;
-    clientId: number;
-    clientType: ClientType;
+    messageSource: string | null;
+    payloadToolkit: string;
+    payloadToolVersion: string;
 }
 
 export interface AlertFilter {
@@ -30,13 +29,12 @@ export interface AlertFilter {
     severity?: number;
     startTime?: string;
     endTime?: string;
-    serverId?: number;
-    clientId?: number;
-    clientType?: string;
+    source?: string;
+    payloadToolkit?: string;
 }
 
 export interface AlertPagination {
-    sort: 'asc' | 'desc';
+    sort: "asc" | "desc";
     limit: number;
     cursor?: number;
 }
@@ -49,6 +47,6 @@ export interface AlertListResult {
         hasMore: boolean;
         nextCursor: number | null;
         limit: number;
-        sort: 'asc' | 'desc';
+        sort: "asc" | "desc";
     };
 }

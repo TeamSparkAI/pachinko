@@ -25,7 +25,7 @@ interface UnseenAlertsState {
 interface AlertsContextType {
   unseenAlerts: UnseenAlertsState;
   refreshUnseenAlerts: () => Promise<void>;
-  getUnseenAlertsCount: (filters: { clientId?: number; serverId?: number; policyId?: number }) => Promise<number>;
+  getUnseenAlertsCount: (filters: { source?: string; payloadToolkit?: string; policyId?: number }) => Promise<number>;
   refreshCounter: number;
 }
 
@@ -43,13 +43,13 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
   const fetchUnseenCounts = useCallback(async () => {
     try {
       setUnseenAlerts(prev => ({ ...prev, isLoading: true, error: null }));
-      
+
       log.debug('[AlertsContext] Fetching unseen alerts');
       const response = await fetch('/api/v1/analytics/alerts/aggregate?dimension=severity&seen=false');
       const data = await response.json();
-      
+
       const result = new JsonResponseFetch<AlertAggregatePayload>(data, 'aggregate');
-      
+
       if (!result.isSuccess()) {
         throw new Error(result.message || 'Failed to fetch unseen alerts');
       }
@@ -79,21 +79,21 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const getUnseenAlertsCount = useCallback(async (filters: { clientId?: number; serverId?: number; policyId?: number }) => {
+  const getUnseenAlertsCount = useCallback(async (filters: { source?: string; payloadToolkit?: string; policyId?: number }) => {
     try {
       const params = new URLSearchParams();
       params.append('dimension', 'severity');
       params.append('seen', 'false');
-      
-      if (filters.clientId) params.append('clientId', filters.clientId.toString());
-      if (filters.serverId) params.append('serverId', filters.serverId.toString());
+
+      if (filters.source) params.append('source', filters.source);
+      if (filters.payloadToolkit) params.append('payloadToolkit', filters.payloadToolkit);
       if (filters.policyId) params.append('policyId', filters.policyId.toString());
-      
+
       const response = await fetch(`/api/v1/analytics/alerts/aggregate?${params.toString()}`);
       const data = await response.json();
-      
+
       const result = new JsonResponseFetch<AlertAggregatePayload>(data, 'aggregate');
-      
+
       if (!result.isSuccess()) {
         throw new Error(result.message || 'Failed to fetch unseen alerts count');
       }
@@ -113,7 +113,7 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    fetchUnseenCounts();
+    void fetchUnseenCounts();
   }, [fetchUnseenCounts]);
 
   return (
@@ -129,4 +129,4 @@ export function useAlerts() {
     throw new Error('useAlerts must be used within an AlertsProvider');
   }
   return context;
-} 
+}

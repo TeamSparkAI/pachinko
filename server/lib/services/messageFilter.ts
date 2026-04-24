@@ -15,16 +15,13 @@ export interface MessageFilterResult {
 }
 
 async function isLuhnValid(number: string): Promise<boolean> {
-    // https://en.wikipedia.org/wiki/Luhn_algorithm
-    // Remove any non-digit characters
     const digits = number.replace(/\D/g, '');
 
     let sum = 0;
     let isEven = false;
 
-    // Process all digits including the check digit
     for (let i = digits.length - 1; i >= 0; i--) {
-        let digit = parseInt(digits[i]);
+        let digit = parseInt(digits[i], 10);
         if (isEven) {
             digit *= 2;
             if (digit > 9) {
@@ -35,7 +32,6 @@ async function isLuhnValid(number: string): Promise<boolean> {
         isEven = !isEven;
     }
 
-    // If sum is divisible by 10, the number is valid
     logger.debug(`Luhn check on ${number}: Sum: ${sum}, divisible by 10: ${sum % 10 === 0}`);
     return sum % 10 === 0;
 }
@@ -49,7 +45,7 @@ interface StringFieldValue {
     value: string;
 }
 
-function getStringFieldValues(obj: any, path: string = ''): StringFieldValue[] {
+function getStringFieldValues(obj: unknown, path: string = ''): StringFieldValue[] {
     const results: StringFieldValue[] = [];
 
     if (typeof obj === 'string') {
@@ -58,10 +54,10 @@ function getStringFieldValues(obj: any, path: string = ''): StringFieldValue[] {
         if (Array.isArray(obj)) {
             for (let i = 0; i < obj.length; i++) {
                 const itemPath = `${path}[${i}]`;
-                results.push(...getStringFieldValues(obj[i], itemPath));
+                results.push(...getStringFieldValues((obj as unknown[])[i], itemPath));
             }
         } else {
-            for (const [key, value] of Object.entries(obj)) {
+            for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
                 const propertyPath = path ? `${path}.${key}` : key;
                 results.push(...getStringFieldValues(value, propertyPath));
             }
@@ -71,14 +67,11 @@ function getStringFieldValues(obj: any, path: string = ''): StringFieldValue[] {
     return results;
 }
 
-// New policy engine (get serverId from filterContext in caller)
-//
 export async function applyPolicies(messageData: MessageData, message: JsonRpcMessageWrapper): Promise<JsonRpcMessageWrapper> {
     const policyModel = await ModelFactory.getInstance().getPolicyModel();
     const policies = await policyModel.list();
 
-    // Get enabled and applicable policies (based on enabled, origin, and methods)
-    const applicablePolicies = policies.filter(policy => {
+    const applicablePolicies = policies.filter((policy) => {
         if (!policy.enabled) {
             return false;
         }
@@ -90,15 +83,10 @@ export async function applyPolicies(messageData: MessageData, message: JsonRpcMe
         }
         return true;
     });
-    
-    // Use new Policy Engine (static method)
+
     const result = await PolicyEngine.processMessage(messageData, message, applicablePolicies);
 
-    // Create alerts from processMessage results (policy findings)
-
-    // Map of alerts by condition instanceId
     const alertMap = new Map<string, AlertReadData>();
-
     const alertModel = await ModelFactory.getInstance().getAlertModel();
     for (const policyFinding of result.policyFindings) {
         for (const filterFinding of policyFinding.conditionFindings) {
@@ -116,12 +104,9 @@ export async function applyPolicies(messageData: MessageData, message: JsonRpcMe
         }
     }
 
-    // Create message actions from processMessage results (policy actions)
-
     const messageActions: MessageActionData[] = [];
     const messageActionModel = await ModelFactory.getInstance().getMessageActionModel();
     for (const policyAction of result.policyActions) {
-        let alertId: number | undefined = undefined;
         for (const actionResult of policyAction.actionResults) {
             for (const actionEvent of actionResult.actionEvents) {
                 if (actionEvent.conditionInstanceId) {
@@ -135,95 +120,83 @@ export async function applyPolicies(messageData: MessageData, message: JsonRpcMe
                 severity: policyAction.policy.severity,
                 action: actionResult.action,
                 actionEvents: actionResult.actionEvents,
-                timestamp: messageData.timestamp
+                timestamp: messageData.timestamp,
             });
-            messageActions.push(messageAction);    
+            messageActions.push(messageAction);
         }
     }
-    
-    // Apply modifications and return the modified message
+
     const modifiedMessage = PolicyEngine.applyModifications(message, messageActions);
-    
+
     return modifiedMessage;
 }
 
 export class MessageFilterService {
     /**
-     * Process and store a JSON-RPC message using jsonc-parser for field-level filtering
-     * @param filterContext Caller context (user, server, client) from the webhook request
-     * @param sessionId The session ID from the message processor
+     * Process and store a JSON-RPC message.
+     * @param filterContext Caller context (user, toolkit, source, …)
      * @param message The JSON-RPC message to process
-     * @param timestamp Optional timestamp to use for the message record
-     * @returns A result object containing the processed message and status
+     * @param timestamp Optional timestamp for the message record
      */
     static async processMessage(
         filterContext: MessageFilterContext,
-        sessionId: string,
         message: JsonRpcMessageWrapper,
         timestamp?: Date
     ): Promise<MessageFilterResult> {
         try {
             const messageModel = await ModelFactory.getInstance().getMessageModel();
 
-            let messageData = null;
+            let messageData: MessageData | null = null;
             if (message.origin === 'server' && message.messageId) {
-                // This is a server-to-client message with an ID, meaning it is a response to a previous client message
                 const messages = await messageModel.list(
-                    {
-                        serverId: filterContext.serverId,
-                        sessionId,
-                        payloadMessageId: message.messageId
-                    },
+                    { payloadMessageId: message.messageId },
                     { sort: 'desc', limit: 1 }
                 );
 
                 if (messages.messages.length > 0) {
-                    // Update existing record with response data
                     messageData = await messageModel.update(messages.messages[0].messageId, {
                         payloadResult: message.result ?? undefined,
-                        payloadError: message.errorMessage ? { code: message.errorCode, message: message.errorMessage } : undefined,
-                        timestampResult: timestamp?.toISOString() || new Date().toISOString()
+                        payloadError: message.errorMessage
+                            ? { code: message.errorCode, message: message.errorMessage }
+                            : undefined,
+                        timestampResult: timestamp?.toISOString() || new Date().toISOString(),
                     });
                 } else {
-                    // Server messages with an id but without a matching request found above is probably an error, but we'll just jam it in so we don't lose it
                     messageData = await messageModel.create({
                         timestamp: timestamp?.toISOString() || new Date().toISOString(),
                         origin: message.origin,
                         userId: filterContext?.user ?? 'unknown',
-                        clientId: filterContext.clientId ?? undefined,
-                        sourceIP: filterContext?.sourceIp ?? 'unknown',
-                        serverName: filterContext?.serverName || '',
-                        serverId: filterContext.serverId,
-                        sessionId,
+                        source: filterContext.source ?? null,
+                        payloadToolkit: filterContext.payloadToolkit ?? '',
+                        payloadToolVersion: filterContext.payloadToolVersion ?? '',
                         payloadMessageId: message.messageId || '',
                         payloadMethod: message.method || '',
-                        payloadToolName: '', // !!! Should this be undefined?
+                        payloadToolName: '',
                         payloadParams: message.params || null,
                         payloadResult: message.result || null,
-                        payloadError: message.errorMessage ? { code: message.errorCode, message: message.errorMessage } : null
+                        payloadError: message.errorMessage
+                            ? { code: message.errorCode, message: message.errorMessage }
+                            : null,
                     });
                 }
             } else {
-                // New messages (either client-initiated, or server-initiated with no id)
                 let payloadToolName = '';
                 if (message.method === 'tools/call') {
-                    payloadToolName = message.params?.name || ''; // !!! Should this be undefined?
+                    payloadToolName = message.params?.name || '';
                 }
                 messageData = await messageModel.create({
                     timestamp: timestamp?.toISOString() || new Date().toISOString(),
                     origin: message.origin,
                     userId: filterContext?.user ?? 'unknown',
-                    clientId: filterContext.clientId ?? undefined,
-                    sourceIP: filterContext?.sourceIp ?? 'unknown',
-                    serverName: filterContext?.serverName || '',
-                    serverId: filterContext.serverId,
-                    sessionId,
+                    source: filterContext.source ?? null,
+                    payloadToolkit: filterContext.payloadToolkit ?? '',
+                    payloadToolVersion: filterContext.payloadToolVersion ?? '',
                     payloadMessageId: message.messageId || '',
                     payloadMethod: message.method || '',
-                    payloadToolName: payloadToolName,
+                    payloadToolName,
                     payloadParams: message.params || null,
                     payloadResult: null,
-                    payloadError: null
+                    payloadError: null,
                 });
             }
 
@@ -231,15 +204,15 @@ export class MessageFilterService {
 
             return {
                 success: true,
-                message: filteredMessage.toJSON()
+                message: filteredMessage.toJSON(),
             };
         } catch (error) {
             logger.error('Error storing message with jsonc filtering:', error);
             return {
                 success: false,
                 message: message.toJSON(),
-                error: 'Failed to store message'
+                error: 'Failed to store message',
             };
         }
     }
-} 
+}

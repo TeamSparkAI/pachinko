@@ -22,43 +22,36 @@ interface QuickStartStep {
 const quickStartSteps: QuickStartStep[] = [
   {
     number: 1,
-    title: 'Discover & Import Clients',
-    description: 'Use the Client Discovery page to discover and import new clients that connect to your system, converting their servers to be managed by ToolVault.',
-    path: '/clients/discover',
-    linkText: 'Go to Client Discovery'
+    title: 'Connect Arcade Engine',
+    description: 'Send MCP traffic through Arcade Engine webhooks so messages are ingested with source, toolkit, and version metadata.',
+    path: '/api',
+    linkText: 'View API docs'
   },
   {
     number: 2,
-    title: 'Review Imported Clients',
-    description: 'Review imported clients, including their configurations and the servers they are connected to.',
-    path: '/clients',
-    linkText: 'Review Clients'
+    title: 'Review Messages',
+    description: 'Inspect MCP requests and responses by source, toolkit, method, and tool.',
+    path: '/messages',
+    linkText: 'Open Messages'
   },
   {
     number: 3,
-    title: 'Validate Managed Servers',
-    description: 'Review your managed servers. Configure settings, validate connections, and test tools.',
-    path: '/servers',
-    linkText: 'Validate Servers'
+    title: 'Define Policies',
+    description: 'Create policies that evaluate stored messages and raise alerts when conditions match.',
+    path: '/policies',
+    linkText: 'Manage Policies'
   },
   {
     number: 4,
-    title: 'Test Your Agents',
-    description: 'Ensure your agents work correctly by testing them. Review messages they generate in ToolVault to confirm they are using managed servers.',
-    path: '/messages',
-    linkText: 'Review Messages'
+    title: 'Triage Alerts',
+    description: 'Review policy hits, drill into the triggering message, and mark alerts as seen.',
+    path: '/alerts',
+    linkText: 'Open Alerts'
   },
   {
     number: 5,
-    title: 'Review and Tune Security Policies',
-    description: 'Review your security policies, then tune them to your needs.',
-    path: '/policies',
-    linkText: 'Review Policies'
-  },
-  {
-    number: 5,
-    title: 'Monitor & Maintain',
-    description: 'Use the dashboard to monitor your system for unhandled alerts, as well as to review message traffic.',
+    title: 'Monitor Traffic',
+    description: 'Use the dashboard for time-series views of messages and alert volume.',
     path: '/dashboard',
     linkText: 'View Dashboard',
     isComplete: true
@@ -80,38 +73,6 @@ const concepts: Concept[] = [
       'Monitor active alerts',
       'See recent activity and system status',
       'Quick access to key functions'
-    ]
-  },
-  {
-    title: 'Servers',
-    description: 'Manage your MCP servers and their configurations',
-    path: '/servers',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-      </svg>
-    ),
-    details: [
-      'View all your managed MCP servers',
-      'Configure server settings and parameters',
-      'Monitor server status and test tools',
-      'Manage server connections and clients'
-    ]
-  },
-  {
-    title: 'Clients',
-    description: 'Manage client connections and their access to servers',
-    path: '/clients',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-    details: [
-      'View all connected clients',
-      'Configure client-specific settings',
-      'Monitor and manager servers used by each client',
-      'Review message and alerts for a client'
     ]
   },
   {
@@ -171,7 +132,7 @@ export default function HelpPage() {
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-semibold text-gray-900 mb-6">Quick Start Guide</h2>
         <p className="text-gray-600 mb-6">
-          Get started with ToolVault by discovering and importing clients, converting their servers to be managed by ToolVault, and validating your setup.  It's quicker and easier than it sounds!
+          Ingest MCP traffic from Arcade Engine, review messages and toolkit metadata, then attach policies and triage alerts from the dashboard.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {quickStartSteps.map((step, index) => (
@@ -213,8 +174,8 @@ export default function HelpPage() {
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-semibold text-gray-900 mb-6">Key Concepts and Features</h2>
         <p className="text-lg text-gray-600">
-          Learn about the key concepts and features of ToolVault. Each section below explains a major component 
-          and provides a direct link to access it.
+          Learn about the key concepts and features of TeamSpark Pachinko. Each section below explains a major
+          component and provides a direct link to access it.
         </p>
       </div>
 
@@ -262,7 +223,7 @@ export default function HelpPage() {
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">Contact Us</h2>
           <p className="text-gray-600 mb-4">
-            Need help with ToolVault? Our team is here to assist you.
+            Need help with Pachinko? Our team is here to assist you.
           </p>
           <div className="flex space-x-3">
             <a
@@ -292,7 +253,7 @@ export default function HelpPage() {
           <ul className="space-y-3">
             <li>
               <a
-                href="https://github.com/TeamSparkAI/toolvault/issues"
+                href="https://github.com/TeamSparkAI/pachinko/issues"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-800 flex items-center"
@@ -305,7 +266,7 @@ export default function HelpPage() {
             </li>
             <li>
               <a
-                href="https://github.com/TeamSparkAI/toolvault"
+                href="https://github.com/TeamSparkAI/pachinko"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-800 flex items-center"

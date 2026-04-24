@@ -7,8 +7,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toggleFilterInUrl } from '@/app/lib/utils/urlParams';
 
+export type DashboardChartDimension = 'payloadToolkit' | 'policyId';
+
 interface DashboardChartProps {
-  dimension: 'serverName' | 'policyId' | 'clientId' | 'clientType';
+  dimension: DashboardChartDimension;
   timeRange: TimeRange;
   filters?: Record<string, string>;
   dimensions?: Dimensions;
@@ -54,7 +56,7 @@ export function DashboardChart({ dimension, timeRange: initialTimeRange, filters
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">
-          {dimension === 'policyId' ? 'Alerts by Policy' : 'Messages by Server'} {timeRange === '7days' ? '(Last 7 Days)' : timeRange === '30days' ? '(Last 30 Days)' : '(All Time)'}
+          {dimension === 'policyId' ? 'Alerts by Policy' : 'Messages by toolkit'} {timeRange === '7days' ? '(Last 7 Days)' : timeRange === '30days' ? '(Last 30 Days)' : '(All Time)'}
         </h2>
         <Link 
           href={reviewLink}
@@ -72,16 +74,14 @@ export function DashboardChart({ dimension, timeRange: initialTimeRange, filters
           dimension={dimension}
           onLegendClick={(entry) => {
             if (dimension === 'policyId') {
-              // For alerts chart, navigate to alerts filtered by policy
               const dataKey = String(entry.dataKey);
               const policyId = dataKey.replace('counts.', '');
               const newURL = toggleFilterInUrl('policyId', policyId);
               router.push(`/alerts${newURL}`);
-            } else if (dimension === 'serverName') {
-              // For messages chart, navigate to messages filtered by server
+            } else if (dimension === 'payloadToolkit') {
               const dataKey = String(entry.dataKey);
-              const serverName = dataKey.replace('counts.', '');
-              const newURL = toggleFilterInUrl('serverName', serverName);
+              const toolkit = dataKey.replace('counts.', '');
+              const newURL = toggleFilterInUrl('payloadToolkit', toolkit);
               router.push(`/messages${newURL}`);
             }
           }}
@@ -89,4 +89,4 @@ export function DashboardChart({ dimension, timeRange: initialTimeRange, filters
       </div>
     </div>
   );
-} 
+}

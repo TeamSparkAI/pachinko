@@ -20,8 +20,8 @@ export function AlertsSection({
     conditionName: undefined,
     seen: undefined,
     severity: undefined,
-    serverId: undefined,
-    clientId: undefined,
+    source: undefined,
+    payloadToolkit: undefined,
     ...initialFilters
   });
   const [pendingFilters, setPendingFilters] = React.useState<AlertFilter>(filters);
@@ -35,18 +35,19 @@ export function AlertsSection({
   const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('desc');
   const [totalAlerts, setTotalAlerts] = React.useState<number>(0);
 
-  const dimensions = providedDimensions ?? useDimensions({
-    dimensions: ['policyId', 'conditionName', 'severity', 'seen', 'serverId', 'clientId'],
+  const fetchedAlertDimensions = useDimensions({
+    dimensions: ['policyId', 'conditionName', 'severity', 'seen', 'source', 'payloadToolkit'],
     autoFetch: true,
     filters: {
       policyId: initialFilters.policyId,
       conditionName: initialFilters.conditionName,
       severity: initialFilters.severity,
       seen: initialFilters.seen,
-      serverId: initialFilters.serverId,
-      clientId: initialFilters.clientId
+      source: initialFilters.source,
+      payloadToolkit: initialFilters.payloadToolkit
     }
   }).dimensions;
+  const dimensions = providedDimensions ?? fetchedAlertDimensions;
 
   const loadAlerts = async (currentCursor?: number, sort: 'asc' | 'desc' = sortDirection, filters = pendingFilters) => {
     try {
@@ -133,8 +134,8 @@ export function AlertsSection({
       conditionName: undefined,
       seen: undefined,
       severity: undefined,
-      serverId: undefined,
-      clientId: undefined,
+      source: undefined,
+      payloadToolkit: undefined,
       ...initialFilters
     };
     setPendingFilters(emptyFilters);

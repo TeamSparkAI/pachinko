@@ -2,6 +2,15 @@ import { SettingsModel } from './sqlite/settings';
 import { logger } from '@/lib/logging/server';
 import { AppSettingsData } from './types/appSettings';
 
+function normalizeExternalUrlForStorage(raw: string): string {
+    const t = raw.trim();
+    if (!t) {
+        return '';
+    }
+    const withScheme = /^https?:\/\//i.test(t) ? t : `https://${t}`;
+    return withScheme.replace(/\/+$/, '');
+}
+
 export abstract class AppSettingsModel {
     protected constructor(protected settings: SettingsModel) {}
 
@@ -9,7 +18,8 @@ export abstract class AppSettingsModel {
     protected static readonly DEFAULT_CONFIG: AppSettingsData = {
         filterApiBearerToken: '',
         messageRetentionDays: 90,
-        alertRetentionDays: 90
+        alertRetentionDays: 90,
+        externalBaseUrl: '',
     };
 
     /**
@@ -42,10 +52,13 @@ export abstract class AppSettingsModel {
         }
         const filterApiBearerToken =
             typeof data.filterApiBearerToken === 'string' ? data.filterApiBearerToken : '';
+        const externalBaseUrl =
+            typeof data.externalBaseUrl === 'string' ? data.externalBaseUrl : '';
         return {
             filterApiBearerToken,
             messageRetentionDays: data.messageRetentionDays,
             alertRetentionDays: data.alertRetentionDays,
+            externalBaseUrl,
         };
     }
 
@@ -53,18 +66,22 @@ export abstract class AppSettingsModel {
      * Set the app settings configuration
      */
     async set(config: AppSettingsData): Promise<void> {
-        this.validate(config);
+        const normalized: AppSettingsData = {
+            ...config,
+            externalBaseUrl: normalizeExternalUrlForStorage(config.externalBaseUrl ?? ''),
+        };
+        this.validate(normalized);
         const settings = await this.settings.findByCategory(AppSettingsModel.CATEGORY);
         
         if (settings) {
             await this.settings.update(AppSettingsModel.CATEGORY, {
-                config,
+                config: normalized,
                 description: 'Application settings configuration'
             });
         } else {
             await this.settings.create({
                 category: AppSettingsModel.CATEGORY,
-                config,
+                config: normalized,
                 description: 'Application settings configuration'
             });
         }
@@ -86,6 +103,19 @@ export abstract class AppSettingsModel {
         if (typeof config.alertRetentionDays !== 'number' || config.alertRetentionDays < 1) {
             throw new Error('alertRetentionDays must be a positive number');
         }
+        if (typeof config.externalBaseUrl !== 'string') {
+            throw new Error('externalBaseUrl must be a string');
+        }
+        const trimmed = config.externalBaseUrl.trim();
+        if (trimmed) {
+            const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+            try {
+                // eslint-disable-next-line no-new
+                new URL(withScheme);
+            } catch {
+                throw new Error('externalBaseUrl must be a valid http(s) URL (or empty)');
+            }
+        }
     }
 
     /**
@@ -97,7 +127,8 @@ export abstract class AppSettingsModel {
         return (
             typeof data.filterApiBearerToken === 'string' &&
             typeof data.messageRetentionDays === 'number' &&
-            typeof data.alertRetentionDays === 'number'
+            typeof data.alertRetentionDays === 'number' &&
+            typeof data.externalBaseUrl === 'string'
         );
     }
 }

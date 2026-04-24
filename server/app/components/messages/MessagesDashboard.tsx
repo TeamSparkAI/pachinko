@@ -115,7 +115,7 @@ export function MessagesDashboard({
         const { startTime, endTime } = calculateTimeRange(timeRange);
 
         const queryParams = new URLSearchParams();
-        queryParams.set('dimension', 'serverName');
+        queryParams.set('dimension', 'payloadToolkit');
         queryParams.set('timeUnit', 'day');
         if (timeRange !== 'all') {
           queryParams.set('startTime', startTime.toISOString());
@@ -127,47 +127,47 @@ export function MessagesDashboard({
           if (value) queryParams.set(key, value);
         });
 
-        const [timeSeriesResponse, clientResponse] = await Promise.all([
+        const [timeSeriesResponse, sourceResponse] = await Promise.all([
           fetch(`/api/v1/analytics/messages/timeSeries?${queryParams.toString()}`),
-          fetch(`/api/v1/analytics/messages/aggregate?dimension=clientId&${queryParams.toString()}`)
+          fetch(`/api/v1/analytics/messages/aggregate?dimension=source&${queryParams.toString()}`)
         ]);
 
-        const [timeSeriesJson, clientJson] = await Promise.all([
+        const [timeSeriesJson, sourceJson] = await Promise.all([
           timeSeriesResponse.json(),
-          clientResponse.json()
+          sourceResponse.json()
         ]);
 
         const timeSeriesResult = new JsonResponseFetch<MessageTimeSeriesPayload>(timeSeriesJson, 'timeSeries');
-        const clientResult = new JsonResponseFetch<MessageAggregatePayload>(clientJson, 'aggregate');
+        const sourceResult = new JsonResponseFetch<MessageAggregatePayload>(sourceJson, 'aggregate');
 
         if (!timeSeriesResult.isSuccess()) {
           throw new Error(`Time series request failed: ${timeSeriesResult.message}`);
         }
 
-        if (!clientResult.isSuccess()) {
-          throw new Error(`Client data request failed: ${clientResult.message}`);
+        if (!sourceResult.isSuccess()) {
+          throw new Error(`Source aggregate request failed: ${sourceResult.message}`);
         }
 
         const timeSeriesDataResult = timeSeriesResult.payload;
-        const clientDataResult = clientResult.payload;
+        const sourceDataResult = sourceResult.payload;
 
         if (!timeSeriesDataResult) {
           throw new Error('Invalid time series data format');
         }
 
-        if (!clientDataResult) {
-          throw new Error('Invalid client data format');
+        if (!sourceDataResult) {
+          throw new Error('Invalid aggregate data format');
         }
 
-        log.debug('Received new client data:', clientDataResult);
-        log.debug('Current client data:', clientData);
+        log.debug('Received new source distribution data:', sourceDataResult);
+        log.debug('Current pie data:', clientData);
 
         // Fill in missing days and update time series data
         const filledData = fillTimeSeriesData(timeSeriesDataResult.data, startTime, endTime, timeRange);
         setTimeSeriesData(filledData);
         
         // Create new client data
-        const newClientData = clientDataResult.data.map((item: MessageAggregateData) => ({
+        const newClientData = sourceDataResult.data.map((item: MessageAggregateData) => ({
           name: item.value,
           value: item.count
         }));
@@ -189,26 +189,24 @@ export function MessagesDashboard({
     };
 
     fetchData();
-  }, [activeFilters, isInitialLoad, timeRange]);
+  }, [activeFilters, isInitialLoad, timeRange, filtersInitialized]);
 
   // Get unique server names from the time series data
-  const serverNames = Array.from(new Set(
+  const toolkitSeriesKeys = Array.from(new Set(
     timeSeriesData.flatMap(data => Object.keys(data.counts))
   ));
 
-  // Handle legend click for server filtering
   const handleLegendClick = (entry: any) => {
-    const serverName = entry.dataKey?.replace('counts.', '') || entry.value;
-    if (serverName) {
-      const newURL = toggleFilterInUrl('serverName', serverName, activeFilters.serverName);
+    const toolkit = entry.dataKey?.replace('counts.', '') || entry.value;
+    if (toolkit) {
+      const newURL = toggleFilterInUrl('payloadToolkit', toolkit, activeFilters.payloadToolkit);
       router.push(`/messages${newURL}`);
     }
   };
 
-  // Handle pie chart click for client filtering
   const handlePieClick = (entry: any) => {
     if (entry && entry.name) {
-      const newURL = toggleFilterInUrl('clientId', entry.name, activeFilters.clientId);
+      const newURL = toggleFilterInUrl('source', entry.name, activeFilters.source);
       router.push(`/messages${newURL}`);
     }
   };
@@ -284,7 +282,7 @@ export function MessagesDashboard({
       
       <div className="grid grid-cols-2 gap-6 relative">
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Messages by Server {timeRange === '7days' ? '(Last 7 Days)' : timeRange === '30days' ? '(Last 30 Days)' : '(All Time)'}</h2>
+          <h2 className="text-xl font-semibold mb-4">Messages by toolkit {timeRange === '7days' ? '(Last 7 Days)' : timeRange === '30days' ? '(Last 30 Days)' : '(All Time)'}</h2>
           <div className="h-80">
             {!timeSeriesData.length ? (
               <div className="h-full flex items-center justify-center text-gray-500">
@@ -318,12 +316,12 @@ export function MessagesDashboard({
                     }}
                   />
                   <Legend onClick={handleLegendClick} wrapperStyle={{ cursor: 'pointer' }} />
-                  {serverNames.map((serverName, index) => (
+                  {toolkitSeriesKeys.map((key, index) => (
                     <Line
-                      key={serverName}
+                      key={key}
                       type="monotone"
-                      dataKey={`counts.${serverName}`}
-                      name={serverName}
+                      dataKey={`counts.${key}`}
+                      name={key}
                       stroke={COLORS[index % COLORS.length]}
                       dot={false}
                     />
@@ -335,7 +333,7 @@ export function MessagesDashboard({
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Messages by Client {timeRange === '7days' ? '(Last 7 Days)' : timeRange === '30days' ? '(Last 30 Days)' : '(All Time)'}</h2>
+          <h2 className="text-xl font-semibold mb-4">Messages by source {timeRange === '7days' ? '(Last 7 Days)' : timeRange === '30days' ? '(Last 30 Days)' : '(All Time)'}</h2>
           <div className="h-80">
             {!clientData.length ? (
               <div className="h-full flex items-center justify-center text-gray-500">
@@ -352,8 +350,8 @@ export function MessagesDashboard({
                     cy="50%"
                     outerRadius={100}
                     label={({ name, percent }: { name: string; percent: number }) => {
-                      const clientName = dimensions.getLabel('clientId', name) || name;
-                      return `${clientName} (${(percent * 100).toFixed(0)}%)`;
+                      const label = dimensions.getLabel('source', name) || name;
+                      return `${label} (${(percent * 100).toFixed(0)}%)`;
                     }}
                     isAnimationActive={true}
                     animationDuration={800}
@@ -366,8 +364,8 @@ export function MessagesDashboard({
                     ))}
                   </Pie>
                   <Tooltip formatter={(value: number, name: string) => {
-                    const clientName = dimensions.getLabel('clientId', name) || name;
-                    return [`${clientName}: ${value}`];
+                    const label = dimensions.getLabel('source', name) || name;
+                    return [`${label}: ${value}`];
                   }} />
                 </PieChart>
               </ResponsiveContainer>

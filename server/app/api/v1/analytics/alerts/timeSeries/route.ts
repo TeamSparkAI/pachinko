@@ -1,10 +1,10 @@
-import { NextRequest } from 'next/server';
-import { JsonResponse } from '@/lib/jsonResponse';
-import { ModelFactory } from '@/lib/models';
-import { logger } from '@/lib/logging/server';
+import { NextRequest } from "next/server";
+import { JsonResponse } from "@/lib/jsonResponse";
+import { ModelFactory } from "@/lib/models";
+import { logger } from "@/lib/logging/server";
 
-type TimeUnit = 'hour' | 'day' | 'week' | 'month';
-type Dimension = 'policyId' | 'conditionName' | 'seen' | 'severity' | 'serverId' | 'clientId' | 'clientType';
+type TimeUnit = "hour" | "day" | "week" | "month";
+type Dimension = "policyId" | "conditionName" | "seen" | "severity" | "source" | "payloadToolkit";
 
 interface AlertTimeSeriesParams {
     dimension: Dimension;
@@ -15,9 +15,8 @@ interface AlertTimeSeriesParams {
     severity?: number;
     startTime?: string;
     endTime?: string;
-    serverId?: number;
-    clientId?: number;
-    clientType?: string;
+    source?: string;
+    payloadToolkit?: string;
 }
 
 export interface AlertTimeSeriesData {
@@ -26,47 +25,38 @@ export interface AlertTimeSeriesData {
 }
 
 export interface AlertTimeSeriesPayload {
-  data: Array<AlertTimeSeriesData>;
-  query: {
-    dimension: Dimension;
-    timeUnit: TimeUnit;
-    timeRange?: {
-      start?: string;
-      end?: string;
+    data: Array<AlertTimeSeriesData>;
+    query: {
+        dimension: Dimension;
+        timeUnit: TimeUnit;
+        timeRange?: {
+            start?: string;
+            end?: string;
+        };
+        filters?: Omit<AlertTimeSeriesParams, "dimension" | "timeUnit">;
     };
-    filters?: {
-      policyId?: number;
-      conditionName?: string;
-      seen?: boolean;
-      severity?: number;
-      serverId?: number;
-      clientId?: number;
-      clientType?: string;
-    };
-  };
 }
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const params: AlertTimeSeriesParams = {
-            dimension: searchParams.get('dimension') as Dimension,
-            timeUnit: searchParams.get('timeUnit') as TimeUnit,
-            policyId: searchParams.get('policyId') ? Number(searchParams.get('policyId')) : undefined,
-            conditionName: searchParams.get('conditionName') || undefined,
-            seen: searchParams.get('seen') === 'true' ? true : searchParams.get('seen') === 'false' ? false : undefined,
-            severity: searchParams.get('severity') ? Number(searchParams.get('severity')) : undefined,
-            startTime: searchParams.get('startTime') || undefined,
-            endTime: searchParams.get('endTime') || undefined,
-            serverId: searchParams.get('serverId') ? Number(searchParams.get('serverId')) : undefined,
-            clientId: searchParams.get('clientId') ? Number(searchParams.get('clientId')) : undefined,
-            clientType: searchParams.get('clientType') || undefined
+            dimension: searchParams.get("dimension") as Dimension,
+            timeUnit: searchParams.get("timeUnit") as TimeUnit,
+            policyId: searchParams.get("policyId") ? Number(searchParams.get("policyId")) : undefined,
+            conditionName: searchParams.get("conditionName") || undefined,
+            seen: searchParams.get("seen") === "true" ? true : searchParams.get("seen") === "false" ? false : undefined,
+            severity: searchParams.get("severity") ? Number(searchParams.get("severity")) : undefined,
+            startTime: searchParams.get("startTime") || undefined,
+            endTime: searchParams.get("endTime") || undefined,
+            source: searchParams.get("source") || undefined,
+            payloadToolkit: searchParams.get("payloadToolkit") || undefined,
         };
 
         if (!params.dimension || !params.timeUnit) {
-            return JsonResponse.errorResponse(400, 'Missing required parameters');
+            return JsonResponse.errorResponse(400, "Missing required parameters");
         }
 
         const alertModel = await ModelFactory.getInstance().getAlertModel();
@@ -75,27 +65,29 @@ export async function GET(request: NextRequest) {
         const response: AlertTimeSeriesPayload = {
             data,
             query: {
-              dimension: params.dimension,
-              timeUnit: params.timeUnit,
-              timeRange: params.startTime || params.endTime ? {
-                start: params.startTime,
-                end: params.endTime
-              } : undefined,
-              filters: {
-                ...(params.policyId && { policyId: params.policyId }),
-                ...(params.conditionName && { conditionName: params.conditionName }),
-                ...(params.seen && { seen: params.seen }),
-                ...(params.severity && { severity: params.severity }),
-                ...(params.serverId && { serverId: params.serverId }),
-                ...(params.clientId && { clientId: params.clientId }),
-                ...(params.clientType && { clientType: params.clientType })
-              }
-            }
-          };
+                dimension: params.dimension,
+                timeUnit: params.timeUnit,
+                timeRange:
+                    params.startTime || params.endTime
+                        ? {
+                              start: params.startTime,
+                              end: params.endTime,
+                          }
+                        : undefined,
+                filters: {
+                    ...(params.policyId && { policyId: params.policyId }),
+                    ...(params.conditionName && { conditionName: params.conditionName }),
+                    ...(params.seen !== undefined && { seen: params.seen }),
+                    ...(params.severity !== undefined && { severity: params.severity }),
+                    ...(params.source && { source: params.source }),
+                    ...(params.payloadToolkit && { payloadToolkit: params.payloadToolkit }),
+                },
+            },
+        };
 
-        return JsonResponse.payloadResponse('timeSeries', response);
+        return JsonResponse.payloadResponse("timeSeries", response);
     } catch (error) {
-        logger.error('Error in alerts timeSeries endpoint:', error);
-        return JsonResponse.errorResponse(500, 'Internal server error');
+        logger.error("Error in alerts timeSeries endpoint:", error);
+        return JsonResponse.errorResponse(500, "Internal server error");
     }
-} 
+}

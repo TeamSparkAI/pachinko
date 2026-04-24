@@ -8,7 +8,7 @@ License text copyright (c) 2020 MariaDB Corporation Ab, All Rights Reserved.
 TeamSpark, LLC
 
 ### Licensed Work
-The Licensed Work is (c) 2025 TeamSpark ToolVault
+The Licensed Work is (c) 2025 TeamSpark Pachinko
 
 ### Additional Use Grant
 
@@ -24,7 +24,7 @@ Notwithstanding the other provisions of this License, the Licensor hereby grants
 (ii) Use in an **automated fashion** (e.g., CI/CD pipelines, automated testing frameworks, scheduled jobs, batch processing) for commercial purposes within a for-profit organization.
 (iii) Offering the Licensed Software or a service derived from it to **third parties** (e.g., as packaged software, a managed service, SaaS, or PaaS).
 (iv) Any use that directly generates **revenue** for the user through the operation of the Licensed Software beyond individual development.
-(v) Any use that **competes with Licensor’s commercial offerings** of TeamSpark ToolVault.
+(v) Any use that **competes with Licensor’s commercial offerings** of TeamSpark Pachinko.
 
 ### Change Date
 Four years from the date the Licensed Work is published

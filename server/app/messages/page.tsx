@@ -16,12 +16,10 @@ function MessagesPageContent() {
   // Initialize filters from URL parameters synchronously
   const getInitialFilters = (): MessageFilter => {
     return {
-      serverName: searchParams.get('serverName') || '',
-      payloadMethod: searchParams.get('payloadMethod') || '',
-      payloadToolName: searchParams.get('payloadToolName') || '',
-      clientId: searchParams.get('clientId') ? parseInt(searchParams.get('clientId')!) : undefined,
-      sourceIP: searchParams.get('sourceIP') || '',
-      sessionId: searchParams.get('sessionId') || ''
+      source: searchParams.get('source') || undefined,
+      payloadToolkit: searchParams.get('payloadToolkit') || undefined,
+      payloadMethod: searchParams.get('payloadMethod') || undefined,
+      payloadToolName: searchParams.get('payloadToolName') || undefined,
     };
   };
 
@@ -37,9 +35,11 @@ function MessagesPageContent() {
   const [cursor, setCursor] = useState<number | undefined>();
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [totalMessages, setTotalMessages] = useState<number>(0);
-  const [filtersInitialized, setFiltersInitialized] = useState(Object.keys(initialFilters).some(key => initialFilters[key as keyof MessageFilter] !== '' && initialFilters[key as keyof MessageFilter] !== undefined));
+  const [filtersInitialized, setFiltersInitialized] = useState(
+    Object.values(initialFilters).some((v) => v !== undefined && v !== '')
+  );
   const { dimensions, isLoading: dimensionsLoading, error: dimensionsError } = useDimensions({
-    dimensions: ['serverName', 'payloadMethod', 'payloadToolName', 'clientId', 'sourceIP']
+    dimensions: ['source', 'payloadToolkit', 'payloadMethod', 'payloadToolName']
   });
 
   // Update filters when searchParams change
@@ -53,12 +53,10 @@ function MessagesPageContent() {
   const updateURL = (newFilters: MessageFilter) => {
     const params = new URLSearchParams();
     
-    if (newFilters.serverName) params.set('serverName', newFilters.serverName);
+    if (newFilters.source) params.set('source', newFilters.source);
+    if (newFilters.payloadToolkit) params.set('payloadToolkit', newFilters.payloadToolkit);
     if (newFilters.payloadMethod) params.set('payloadMethod', newFilters.payloadMethod);
     if (newFilters.payloadToolName) params.set('payloadToolName', newFilters.payloadToolName);
-    if (newFilters.clientId !== undefined) params.set('clientId', newFilters.clientId.toString());
-    if (newFilters.sourceIP) params.set('sourceIP', newFilters.sourceIP);
-    if (newFilters.sessionId) params.set('sessionId', newFilters.sessionId);
     
     const newURL = params.toString() ? `?${params.toString()}` : '';
     router.replace(`/messages${newURL}`, { scroll: false });
@@ -73,7 +71,7 @@ function MessagesPageContent() {
       setLoading(true);
       const queryParams = new URLSearchParams();
       Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
+        if (value !== undefined && value !== null && value !== '') {
           log.debug(`Adding filter: ${key}=${value}`);
           queryParams.append(key, value.toString());
         }
@@ -128,7 +126,7 @@ function MessagesPageContent() {
     log.debug('Filter change:', { field, value });
     
     // Check if this is a dropdown change (serverName, payloadMethod, toolName, clientId, sourceIP)
-    const isDropdownChange = ['serverName', 'payloadMethod', 'payloadToolName', 'clientId', 'sourceIP'].includes(field);
+    const isDropdownChange = ['source', 'payloadToolkit', 'payloadMethod', 'payloadToolName'].includes(field);
     
     // Create new pending filters with the change
     const newPendingFilters = { ...pendingFilters, [field]: value };
@@ -167,14 +165,7 @@ function MessagesPageContent() {
 
   const handleClear = () => {
     log.debug('Clearing filters');
-    const emptyFilters: MessageFilter = {
-      serverName: '',
-      payloadMethod: '',
-      payloadToolName: '',
-      clientId: undefined,
-      sourceIP: '',
-      sessionId: ''
-    };
+    const emptyFilters: MessageFilter = {};
     setPendingFilters(emptyFilters);
     setFilters(emptyFilters);
     updateURL(emptyFilters);

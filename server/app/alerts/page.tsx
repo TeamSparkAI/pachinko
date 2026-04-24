@@ -9,10 +9,12 @@ import { AlertReadData, AlertFilter } from '@/lib/models/types/alert';
 import { NewAlertsSummary } from '@/app/components/alerts/NewAlertsSummary';
 import { useDimensions } from '@/app/hooks/useDimensions';
 import { log } from '@/lib/logging/console';
+import { useAlerts } from '@/app/contexts/AlertsContext';
 
 function AlertsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { refreshUnseenAlerts } = useAlerts();
   const [alerts, setAlerts] = useState<AlertReadData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,12 +32,12 @@ function AlertsPageContent() {
     const seen = searchParams.get('seen');
     if (seen) urlFilters.seen = seen === 'true';
     
-    const serverId = searchParams.get('serverId');
-    if (serverId) urlFilters.serverId = parseInt(serverId);
-    
-    const clientId = searchParams.get('clientId');
-    if (clientId) urlFilters.clientId = parseInt(clientId);
-    
+    const source = searchParams.get('source');
+    if (source) urlFilters.source = source;
+
+    const payloadToolkit = searchParams.get('payloadToolkit');
+    if (payloadToolkit) urlFilters.payloadToolkit = payloadToolkit;
+
     const conditionName = searchParams.get('conditionName');
     if (conditionName) urlFilters.conditionName = conditionName;
 
@@ -52,7 +54,7 @@ function AlertsPageContent() {
   const [totalAlerts, setTotalAlerts] = useState<number>(0);
   const [filtersInitialized, setFiltersInitialized] = useState(Object.keys(initialFilters).length > 0);
   const { dimensions, isLoading: dimensionsLoading, error: dimensionsError } = useDimensions({
-    dimensions: ['policyId', 'conditionName', 'severity', 'seen', 'serverId', 'clientId']
+    dimensions: ['policyId', 'conditionName', 'severity', 'seen', 'source', 'payloadToolkit']
   });
 
   // Update filters when searchParams change
@@ -73,8 +75,8 @@ function AlertsPageContent() {
     if (newFilters.severity !== undefined) params.set('severity', newFilters.severity.toString());
     if (newFilters.policyId !== undefined) params.set('policyId', newFilters.policyId.toString());
     if (newFilters.seen !== undefined) params.set('seen', newFilters.seen.toString());
-    if (newFilters.serverId !== undefined) params.set('serverId', newFilters.serverId.toString());
-    if (newFilters.clientId !== undefined) params.set('clientId', newFilters.clientId.toString());
+    if (newFilters.source !== undefined) params.set('source', newFilters.source);
+    if (newFilters.payloadToolkit !== undefined) params.set('payloadToolkit', newFilters.payloadToolkit);
     if (newFilters.conditionName !== undefined) params.set('conditionName', newFilters.conditionName);
     
     const newURL = params.toString() ? `?${params.toString()}` : '';
@@ -97,8 +99,8 @@ function AlertsPageContent() {
       if (filters.conditionName !== undefined) queryParams.set('conditionName', filters.conditionName);
       if (filters.seen !== undefined) queryParams.set('seen', filters.seen.toString());
       if (filters.severity !== undefined) queryParams.set('severity', filters.severity.toString());
-      if (filters.serverId !== undefined) queryParams.set('serverId', filters.serverId.toString());
-      if (filters.clientId !== undefined) queryParams.set('clientId', filters.clientId.toString());
+      if (filters.source !== undefined) queryParams.set('source', filters.source);
+      if (filters.payloadToolkit !== undefined) queryParams.set('payloadToolkit', filters.payloadToolkit);
 
       // Add cursor if provided
       if (nextCursor) {
@@ -116,8 +118,9 @@ function AlertsPageContent() {
         setAlerts(prev => [...prev, ...data.alerts]);
       } else {
         setAlerts(data.alerts);
+        void refreshUnseenAlerts();
       }
-      
+
       setHasMore(data.pagination?.hasMore ?? false);
       setCursor(data.pagination?.nextCursor ? Number(data.pagination.nextCursor) : null);
       setTotalAlerts(data.pagination?.total ?? 0);

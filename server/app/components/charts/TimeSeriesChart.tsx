@@ -9,18 +9,17 @@ interface TimeSeriesChartProps {
   data: MessageTimeSeriesData[];
   height?: number;
   dimensions?: Dimensions;
-  dimension?: 'serverName' | 'policyId' | 'clientId' | 'clientType';
+  dimension?: 'payloadToolkit' | 'policyId' | 'source';
   onLegendClick?: (entry: any) => void;
 }
 
 export function TimeSeriesChart({ data, height = 300, dimensions, dimension, onLegendClick }: TimeSeriesChartProps) {
   
-  // Get unique server names from the data
-  const serverNames = Array.from(new Set(
+  const seriesKeys = Array.from(new Set(
     data.flatMap(item => Object.keys(item.counts))
   ));
 
-  // Define colors for each server
+  // Line colors per series
   const COLORS = [
     '#2563eb', // blue-600
     '#dc2626', // red-600
@@ -76,12 +75,12 @@ export function TimeSeriesChart({ data, height = 300, dimensions, dimension, onL
             }}
             onClick={onLegendClick}
           />
-          {serverNames.map((serverName, index) => (
+          {seriesKeys.map((key, index) => (
             <Line
-              key={serverName}
+              key={key}
               type="monotone"
-              dataKey={`counts.${serverName}`}
-              name={serverName}
+              dataKey={`counts.${key}`}
+              name={key}
               stroke={COLORS[index % COLORS.length]}
               dot={false}
             />

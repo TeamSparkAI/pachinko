@@ -9,14 +9,6 @@ import { useRouter } from 'next/navigation';
 import { useAlerts } from '@/app/contexts/AlertsContext';
 
 interface DashboardStats {
-  servers: {
-    total: number;
-    active: number;
-  };
-  clients: {
-    total: number;
-    disabled: number;
-  };
   policies: {
     total: number;
     alerts: number;
@@ -25,13 +17,11 @@ interface DashboardStats {
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
-    servers: { total: 0, active: 0 },
-    clients: { total: 0, disabled: 0 },
     policies: { total: 0, alerts: 0 }
   });
   const { setHeaderTitle } = useLayout();
   const { dimensions } = useDimensions({
-    dimensions: ['serverName', 'policyId']
+    dimensions: ['payloadToolkit', 'policyId']
   });
   const router = useRouter();
   const { unseenAlerts } = useAlerts();
@@ -66,50 +56,27 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function fetchStats() {
+      let totalPolicies = 0;
+      let totalAlerts = 0;
       try {
-        const serversRes = await fetch('/api/v1/servers?managed=true');
-        const serversData = await serversRes.json();
-        const servers = serversData.servers || [];
-        const totalServers = servers.length;
-        const activeServers = servers.filter((s: { enabled?: boolean }) => s.enabled).length;
-
-        const clientsRes = await fetch('/api/v1/clients');
-        const clientsData = await clientsRes.json();
-        const clients = clientsData.clients || [];
-        const activeClients = clients.filter((c: { enabled?: boolean }) => c.enabled).length;
-        const totalClients = clients.length;
-        const disabledClients = totalClients - activeClients;
-
-        let totalPolicies = 0;
-        let totalAlerts = 0;
-        try {
-          const policiesRes = await fetch('/api/v1/policies');
-          if (policiesRes.status === 404) {
-            totalPolicies = 0;
-            totalAlerts = 0;
-          } else {
-            const policiesData = await policiesRes.json();
-            const policies = policiesData.policies || [];
-            totalPolicies = policies.length;
-            totalAlerts = policies.reduce(
-              (sum: number, p: { status?: { unseenAlerts?: number } }) => sum + (p.status?.unseenAlerts || 0),
-              0
-            );
-          }
-        } catch {
+        const policiesRes = await fetch('/api/v1/policies');
+        if (policiesRes.status === 404) {
           totalPolicies = 0;
           totalAlerts = 0;
+        } else {
+          const policiesData = await policiesRes.json();
+          const policies = policiesData.policies || [];
+          totalPolicies = policies.length;
+          totalAlerts = policies.reduce(
+            (sum: number, p: { status?: { unseenAlerts?: number } }) => sum + (p.status?.unseenAlerts || 0),
+            0
+          );
         }
-
         setStats({
-          servers: { total: totalServers, active: activeServers },
-          clients: { total: activeClients, disabled: disabledClients },
           policies: { total: totalPolicies, alerts: totalAlerts }
         });
       } catch {
         setStats({
-          servers: { total: 0, active: 0 },
-          clients: { total: 0, disabled: 0 },
           policies: { total: 0, alerts: 0 }
         });
       }
@@ -123,54 +90,24 @@ export default function DashboardPage() {
 
       <AlertsStatus />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div
           className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => router.push('/servers')}
+          onClick={() => router.push('/messages')}
         >
           <div className="flex justify-between items-center">
-            <h3 className="text-xl font-semibold text-gray-900 flex-1">Servers</h3>
+            <h3 className="text-xl font-semibold text-gray-900 flex-1">Messages</h3>
             <a
-              href="/servers"
+              href="/messages"
               className="text-blue-500 text-sm hover:underline ml-2"
               onClick={(e) => e.stopPropagation()}
             >
-              Manage
+              Open
             </a>
           </div>
-          <div className="mt-2">
-            <div className="flex flex-col items-start">
-              <span className="text-3xl font-semibold text-gray-900">{stats.servers.active}</span>
-              <span className="text-sm text-gray-500">Active</span>
-              {stats.servers.total > stats.servers.active && (
-                <span className="text-xs text-gray-400 mt-1">{stats.servers.total - stats.servers.active} disabled</span>
-              )}
-            </div>
-          </div>
-        </div>
-        <div
-          className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => router.push('/clients')}
-        >
-          <div className="flex justify-between items-center">
-            <h3 className="text-xl font-semibold text-gray-900 flex-1">Clients</h3>
-            <a
-              href="/clients"
-              className="text-blue-500 text-sm hover:underline ml-2"
-              onClick={(e) => e.stopPropagation()}
-            >
-              Manage
-            </a>
-          </div>
-          <div className="mt-2">
-            <div className="flex flex-col items-start">
-              <span className="text-3xl font-semibold text-gray-900">{stats.clients.total}</span>
-              <span className="text-sm text-gray-500">Active</span>
-              {stats.clients.disabled > 0 && (
-                <span className="text-xs text-gray-400 mt-1">{stats.clients.disabled} disabled</span>
-              )}
-            </div>
-          </div>
+          <p className="mt-2 text-sm text-gray-600">
+            Review ingested MCP traffic by toolkit and source.
+          </p>
         </div>
         <div
           className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-md transition-shadow"
@@ -199,7 +136,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
-        <DashboardChart dimension="serverName" timeRange="7days" dimensions={dimensions} />
+        <DashboardChart dimension="payloadToolkit" timeRange="7days" dimensions={dimensions} />
       </div>
 
       <div className="bg-white rounded-lg shadow">

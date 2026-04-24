@@ -22,23 +22,20 @@ import type { ArcadePostHookRequest, ArcadePreHookRequest } from '@/lib/types/ar
 
 export type ArcadeWebhookDirection = 'client' | 'server';
 
-/** Synthetic `MessageFilterContext` for Arcade-only webhooks (no MCP server binding). */
-const ARCADE_SYNTHETIC_SERVER_ID = 0;
-
 function syntheticMessageFilterContextForArcade(
-  arcadeContext: ArcadePreHookRequest['context'] | ArcadePostHookRequest['context']
+  body: ArcadePreHookRequest | ArcadePostHookRequest
 ): MessageFilterContext {
+  const arcadeContext = body.context;
   const user =
     typeof arcadeContext.user_id === 'string' && arcadeContext.user_id.trim().length > 0
       ? arcadeContext.user_id.trim()
       : 'unknown';
+  const tool = body.tool;
   return {
     user,
-    sourceIp: 'arcade',
-    serverToken: '',
-    serverName: 'Arcade',
-    serverId: ARCADE_SYNTHETIC_SERVER_ID,
-    clientId: null,
+    source: 'arcade',
+    payloadToolkit: typeof tool?.toolkit === 'string' ? tool.toolkit : '',
+    payloadToolVersion: typeof tool?.version === 'string' ? tool.version : '',
   };
 }
 
@@ -145,20 +142,20 @@ export async function handleArcadeFilterWebhook(
 
     if (direction === 'client') {
       if (isArcadeEnginePrePayload(body)) {
-        const filterPayload = syntheticMessageFilterContextForArcade(body.context);
+        const filterPayload = syntheticMessageFilterContextForArcade(body);
         console.log(
           '[Arcade webhook]',
           hookLabel,
-          'using synthetic MessageFilterContext',
+          'using MessageFilterContext',
           JSON.stringify({
-            serverName: filterPayload.serverName,
-            serverId: filterPayload.serverId,
             user: filterPayload.user,
+            source: filterPayload.source,
+            payloadToolkit: filterPayload.payloadToolkit,
           })
         );
         const rpc = arcadePreToJsonRpcRequest(body);
         const validatedMessage = validateJsonRpcMessage('client', rpc);
-        const result = await MessageFilterService.processMessage(filterPayload, body.execution_id, validatedMessage);
+        const result = await MessageFilterService.processMessage(filterPayload, validatedMessage);
         if (!result.success) {
           return jsonErrorResponse(
             hookLabel,
@@ -195,15 +192,15 @@ export async function handleArcadeFilterWebhook(
         );
       }
       if (isArcadeEnginePostPayload(body)) {
-        const filterPayload = syntheticMessageFilterContextForArcade(body.context);
+        const filterPayload = syntheticMessageFilterContextForArcade(body);
         console.log(
           '[Arcade webhook]',
           hookLabel,
-          'using synthetic MessageFilterContext',
+          'using MessageFilterContext',
           JSON.stringify({
-            serverName: filterPayload.serverName,
-            serverId: filterPayload.serverId,
             user: filterPayload.user,
+            source: filterPayload.source,
+            payloadToolkit: filterPayload.payloadToolkit,
           })
         );
 
@@ -217,7 +214,7 @@ export async function handleArcadeFilterWebhook(
           rpc = arcadePostSuccessToJsonRpc(body.execution_id, shape);
         }
         const validatedMessage = validateJsonRpcMessage('server', rpc);
-        const result = await MessageFilterService.processMessage(filterPayload, body.execution_id, validatedMessage);
+        const result = await MessageFilterService.processMessage(filterPayload, validatedMessage);
         if (!result.success) {
           return jsonErrorResponse(
             hookLabel,

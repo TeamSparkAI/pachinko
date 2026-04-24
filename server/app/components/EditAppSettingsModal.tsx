@@ -17,12 +17,14 @@ export default function EditAppSettingsModal({ settings, onSave, onCancel }: Edi
   const [filterApiBearerToken, setFilterApiBearerToken] = useState(settings?.filterApiBearerToken ?? '');
   const [messageRetentionDays, setMessageRetentionDays] = useState(settings?.messageRetentionDays ?? 30);
   const [alertRetentionDays, setAlertRetentionDays] = useState(settings?.alertRetentionDays ?? 30);
+  const [externalBaseUrl, setExternalBaseUrl] = useState(settings?.externalBaseUrl ?? '');
 
   useEffect(() => {
     if (settings) {
       setFilterApiBearerToken(settings.filterApiBearerToken ?? '');
       setMessageRetentionDays(settings.messageRetentionDays);
       setAlertRetentionDays(settings.alertRetentionDays);
+      setExternalBaseUrl(settings.externalBaseUrl ?? '');
     }
   }, [settings]);
 
@@ -35,7 +37,8 @@ export default function EditAppSettingsModal({ settings, onSave, onCancel }: Edi
     onSave({
       filterApiBearerToken,
       messageRetentionDays,
-      alertRetentionDays
+      alertRetentionDays,
+      externalBaseUrl,
     });
   };
 
@@ -70,6 +73,24 @@ export default function EditAppSettingsModal({ settings, onSave, onCancel }: Edi
           <p className="text-xs text-gray-500 mt-1">
             When set, Arcade Engine policy webhooks (<code className="text-xs bg-gray-100 px-1 rounded">/api/v1/webhooks/…</code>) require{' '}
             <code className="text-xs bg-gray-100 px-1 rounded">Authorization: Bearer</code> with this value.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="externalBaseUrl" className="block text-sm font-medium text-gray-700 mb-1">
+            Public server URL
+          </label>
+          <input
+            id="externalBaseUrl"
+            type="url"
+            value={externalBaseUrl}
+            onChange={(e) => setExternalBaseUrl(e.target.value)}
+            placeholder="https://your-host.example.com (leave empty to use this page’s host and port)"
+            className="w-full p-2 border rounded font-mono text-sm"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Used on the Settings page to show full Arcade webhook URLs. Empty means the URL from your browser (e.g.{' '}
+            <code className="text-xs bg-gray-100 px-1 rounded">http://localhost:3000</code>).
           </p>
         </div>
 

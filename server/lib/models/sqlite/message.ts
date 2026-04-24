@@ -1,9 +1,14 @@
 import { MessageModel } from '../message';
-import { DatabaseClient } from '../sqlite/database';
-import { ClientType } from '../../types/clientType';
+import { DatabaseClient, SqliteValue } from '../sqlite/database';
 import { MessageOrigin } from '../../jsonrpc';
 import { logger } from '@/lib/logging/server';
-import { MessageData, MessageFilter, MessageListResult, MessagePagination } from '../types/message';
+import {
+    MessageData,
+    MessageFilter,
+    MessageListResult,
+    MessagePagination,
+    MessageAnalyticsFilter,
+} from '../types/message';
 
 export class SqliteMessageModel extends MessageModel {
     private db: DatabaseClient;
@@ -14,45 +19,47 @@ export class SqliteMessageModel extends MessageModel {
     }
 
     async findById(messageId: number): Promise<MessageData | null> {
-        const result = await this.db.query<MessageData & { clientType: string; hasAlerts: number }>(
-            `SELECT m.*, c.type as clientType, 
+        const result = await this.db.query<MessageData & { hasAlerts: number }>(
+            `SELECT m.*,
                     CASE WHEN a.alertId IS NOT NULL THEN 1 ELSE 0 END as hasAlerts
-             FROM messages m 
-             LEFT JOIN clients c ON m.clientId = c.clientId 
+             FROM messages m
              LEFT JOIN alerts a ON m.messageId = a.messageId
              WHERE m.messageId = ?`,
             [messageId]
         );
         if (!result.rows[0]) return null;
 
-        // Deserialize JSON fields
         const msg = result.rows[0];
+        const { hasAlerts: _hasAlerts, ...rest } = msg as MessageData & { hasAlerts: number };
         return {
-            ...msg,
-            clientType: msg.clientType as ClientType,
+            ...rest,
             origin: msg.origin as MessageOrigin,
-            payloadParams: msg.payloadParams ? JSON.parse(msg.payloadParams) : null,
-            payloadResult: msg.payloadResult ? JSON.parse(msg.payloadResult) : null,
-            payloadError: msg.payloadError ? JSON.parse(msg.payloadError) : null,
-            alerts: msg.hasAlerts === 1
+            payloadParams: msg.payloadParams ? JSON.parse(msg.payloadParams as unknown as string) : null,
+            payloadResult: msg.payloadResult ? JSON.parse(msg.payloadResult as unknown as string) : null,
+            payloadError: msg.payloadError ? JSON.parse(msg.payloadError as unknown as string) : null,
+            alerts: (msg as { hasAlerts: number }).hasAlerts === 1,
         };
     }
 
     async list(filter: MessageFilter, pagination: MessagePagination): Promise<MessageListResult> {
         const conditions: string[] = [];
-        const params: any[] = [];
+        const params: SqliteValue[] = [];
 
         if (filter.origin) {
             conditions.push('m.origin = ?');
             params.push(filter.origin);
         }
-        if (filter.serverName) {
-            conditions.push('m.serverName = ?');
-            params.push(filter.serverName);
+        if (filter.userId) {
+            conditions.push('m.userId = ?');
+            params.push(filter.userId);
         }
-        if (filter.serverId) {
-            conditions.push('m.serverId = ?');
-            params.push(filter.serverId);
+        if (filter.source) {
+            conditions.push('m.source = ?');
+            params.push(filter.source);
+        }
+        if (filter.payloadToolkit) {
+            conditions.push('m.payloadToolkit = ?');
+            params.push(filter.payloadToolkit);
         }
         if (filter.payloadMethod) {
             conditions.push('m.payloadMethod = ?');
@@ -65,26 +72,6 @@ export class SqliteMessageModel extends MessageModel {
         if (filter.payloadToolName) {
             conditions.push('m.payloadToolName = ?');
             params.push(filter.payloadToolName);
-        }
-        if (filter.userId) {
-            conditions.push('m.userId = ?');
-            params.push(filter.userId);
-        }
-        if (filter.clientId) {
-            conditions.push('m.clientId = ?');
-            params.push(filter.clientId);
-        }
-        if (filter.clientType) {
-            conditions.push('c.type = ?');
-            params.push(filter.clientType);
-        }
-        if (filter.sourceIP) {
-            conditions.push('m.sourceIP = ?');
-            params.push(filter.sourceIP);
-        }
-        if (filter.sessionId) {
-            conditions.push('m.sessionId = ?');
-            params.push(filter.sessionId);
         }
         if (filter.startTime) {
             conditions.push('m.timestamp >= ?');
@@ -103,67 +90,53 @@ export class SqliteMessageModel extends MessageModel {
         const orderClause = `ORDER BY m.messageId ${pagination.sort}`;
         const limitClause = `LIMIT ?`;
 
-        const queryParams = [
-            ...params,
-            pagination.limit
-        ];
+        const queryParams = [...params, pagination.limit];
 
         const messages = await this.db.query<{
             messageId: number;
             timestamp: string;
             timestampResult?: string;
             userId: string;
-            clientId?: number;
-            sourceIP: string;
-            serverId?: number;
-            serverName: string;
-            sessionId: string;
+            source: string | null;
+            payloadToolkit: string;
+            payloadToolVersion: string;
             origin: string;
             payloadMessageId: string;
             payloadMethod: string;
             payloadToolName: string;
             createdAt: string;
-            clientType: string;
             hasAlerts: number;
             hasError: number;
         }>(
-            `SELECT m.messageId, m.timestamp, m.timestampResult, m.userId, m.clientId, m.sourceIP, 
-                    m.serverId, m.serverName, m.sessionId, m.origin, m.payloadMessageId, m.payloadMethod, 
-                    m.payloadToolName, m.createdAt, c.type as clientType,
+            `SELECT m.messageId, m.timestamp, m.timestampResult, m.userId, m.source,
+                    m.payloadToolkit, m.payloadToolVersion, m.origin, m.payloadMessageId, m.payloadMethod,
+                    m.payloadToolName, m.createdAt,
                     CASE WHEN EXISTS (SELECT 1 FROM alerts a WHERE a.messageId = m.messageId) THEN 1 ELSE 0 END as hasAlerts,
                     CASE WHEN m.payloadError IS NULL THEN 0 ELSE 1 END as hasError
-             FROM messages m 
-             LEFT JOIN clients c ON m.clientId = c.clientId 
+             FROM messages m
              ${whereClause} ${orderClause} ${limitClause}`,
             queryParams
         );
 
-        // Transform to MessageListItemData format
         const messageItems = messages.rows.map((msg) => ({
             messageId: msg.messageId,
             timestamp: msg.timestamp,
             timestampResult: msg.timestampResult,
             userId: msg.userId,
-            clientId: msg.clientId,
-            clientType: msg.clientType as ClientType,
-            sourceIP: msg.sourceIP,
-            serverId: msg.serverId,
-            serverName: msg.serverName,
-            sessionId: msg.sessionId,
+            source: msg.source,
+            payloadToolkit: msg.payloadToolkit,
+            payloadToolVersion: msg.payloadToolVersion,
             origin: msg.origin as MessageOrigin,
             payloadMessageId: msg.payloadMessageId,
             payloadMethod: msg.payloadMethod,
             payloadToolName: msg.payloadToolName,
             hasError: msg.hasError === 1,
             createdAt: msg.createdAt,
-            alerts: msg.hasAlerts === 1
+            alerts: msg.hasAlerts === 1,
         }));
 
         const total = await this.db.query<{ count: number }>(
-            `SELECT COUNT(*) as count 
-             FROM messages m 
-             LEFT JOIN clients c ON m.clientId = c.clientId 
-             ${whereClause}`,
+            `SELECT COUNT(*) as count FROM messages m ${whereClause}`,
             params
         );
 
@@ -179,32 +152,30 @@ export class SqliteMessageModel extends MessageModel {
                 hasMore,
                 nextCursor,
                 limit: pagination.limit,
-                sort: pagination.sort
-            }
+                sort: pagination.sort,
+            },
         };
     }
 
     async create(data: Omit<MessageData, 'messageId' | 'createdAt'>): Promise<MessageData> {
         await this.db.execute(
             `INSERT INTO messages (
-                timestamp, origin, userId, clientId, sourceIP, serverName, serverId, sessionId,
+                timestamp, origin, userId, source, payloadToolkit, payloadToolVersion,
                 payloadMessageId, payloadMethod, payloadToolName, payloadParams, payloadResult, payloadError
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 data.timestamp,
                 data.origin,
                 data.userId,
-                data.clientId || null,
-                data.sourceIP,
-                data.serverName,
-                data.serverId || null,
-                data.sessionId,
+                data.source ?? null,
+                data.payloadToolkit ?? '',
+                data.payloadToolVersion ?? '',
                 data.payloadMessageId,
                 data.payloadMethod,
                 data.payloadToolName,
                 data.payloadParams ? JSON.stringify(data.payloadParams) : null,
                 data.payloadResult ? JSON.stringify(data.payloadResult) : null,
-                data.payloadError ? JSON.stringify(data.payloadError) : null
+                data.payloadError ? JSON.stringify(data.payloadError) : null,
             ]
         );
 
@@ -216,9 +187,9 @@ export class SqliteMessageModel extends MessageModel {
         return this.findById(result.rows[0].messageId) as Promise<MessageData>;
     }
 
-    async update(messageId: number, payload: { payloadResult?: object | undefined; payloadError?: object | undefined; timestampResult?: string }): Promise<MessageData> {
+    async update(messageId: number, payload: Partial<MessageData>): Promise<MessageData> {
         const updates: string[] = [];
-        const params: any[] = [];
+        const params: SqliteValue[] = [];
 
         if (payload.payloadResult !== undefined) {
             updates.push('payloadResult = ?');
@@ -237,10 +208,7 @@ export class SqliteMessageModel extends MessageModel {
             return this.findById(messageId) as Promise<MessageData>;
         }
 
-        await this.db.execute(
-            `UPDATE messages SET ${updates.join(', ')} WHERE messageId = ?`,
-            [...params, messageId]
-        );
+        await this.db.execute(`UPDATE messages SET ${updates.join(', ')} WHERE messageId = ?`, [...params, messageId]);
 
         return this.findById(messageId) as Promise<MessageData>;
     }
@@ -250,42 +218,21 @@ export class SqliteMessageModel extends MessageModel {
         return result.changes > 0;
     }
 
-    async timeSeries(params: {
-        dimension: string;
-        timeUnit: 'hour' | 'day' | 'week' | 'month';
-        serverName?: string;
-        serverId?: number;
-        userId?: string;
-        clientId?: number;
-        clientType?: string;
-        payloadMethod?: string;
-        payloadToolName?: string;
-        sourceIP?: string;
-        startTime?: string;
-        endTime?: string;
-    }): Promise<Array<{ timestamp: string; counts: Record<string, number> }>> {
+    private buildAnalyticsWhere(params: MessageAnalyticsFilter): { clause: string; queryParams: SqliteValue[] } {
         const conditions: string[] = [];
-        const queryParams: any[] = [];
+        const queryParams: SqliteValue[] = [];
 
-        if (params.serverName) {
-            conditions.push('m.serverName = ?');
-            queryParams.push(params.serverName);
-        }
-        if (params.serverId) {
-            conditions.push('m.serverId = ?');
-            queryParams.push(params.serverId);
-        }
         if (params.userId) {
             conditions.push('m.userId = ?');
             queryParams.push(params.userId);
         }
-        if (params.clientId) {
-            conditions.push('m.clientId = ?');
-            queryParams.push(params.clientId);
+        if (params.source) {
+            conditions.push('m.source = ?');
+            queryParams.push(params.source);
         }
-        if (params.clientType) {
-            conditions.push('c.type = ?');
-            queryParams.push(params.clientType);
+        if (params.payloadToolkit) {
+            conditions.push('m.payloadToolkit = ?');
+            queryParams.push(params.payloadToolkit);
         }
         if (params.payloadMethod) {
             conditions.push('m.payloadMethod = ?');
@@ -295,153 +242,111 @@ export class SqliteMessageModel extends MessageModel {
             conditions.push('m.payloadToolName = ?');
             queryParams.push(params.payloadToolName);
         }
-        if (params.sourceIP) {
-            conditions.push('m.sourceIP = ?');
-            queryParams.push(params.sourceIP);
-        }
         if (params.startTime) {
-            conditions.push("date(m.timestamp) >= date(?)");
+            conditions.push('date(m.timestamp) >= date(?)');
             queryParams.push(params.startTime);
         }
         if (params.endTime) {
-            conditions.push("date(m.timestamp) <= date(?)");
+            conditions.push('date(m.timestamp) <= date(?)');
             queryParams.push(params.endTime);
         }
 
-        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const clause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        return { clause, queryParams };
+    }
+
+    private dimensionColumn(dimension: string): string {
+        switch (dimension) {
+            case 'payloadMethod':
+                return 'm.payloadMethod';
+            case 'payloadToolName':
+                return 'm.payloadToolName';
+            case 'userId':
+                return 'm.userId';
+            case 'source':
+                return 'm.source';
+            case 'payloadToolkit':
+                return 'm.payloadToolkit';
+            default:
+                return `m.${dimension}`;
+        }
+    }
+
+    async timeSeries(
+        params: {
+            dimension: string;
+            timeUnit: 'hour' | 'day' | 'week' | 'month';
+        } & MessageAnalyticsFilter
+    ): Promise<Array<{ timestamp: string; counts: Record<string, number> }>> {
+        const { clause: whereClause, queryParams } = this.buildAnalyticsWhere(params);
 
         let timeFormat: string;
         switch (params.timeUnit) {
-            case 'hour': timeFormat = '%Y-%m-%d %H:00:00'; break;
-            case 'day': timeFormat = '%Y-%m-%d'; break;
-            case 'week': timeFormat = '%Y-%W'; break;
-            case 'month': timeFormat = '%Y-%m'; break;
-            default: timeFormat = '%Y-%m-%d';
+            case 'hour':
+                timeFormat = '%Y-%m-%d %H:00:00';
+                break;
+            case 'day':
+                timeFormat = '%Y-%m-%d';
+                break;
+            case 'week':
+                timeFormat = '%Y-%W';
+                break;
+            case 'month':
+                timeFormat = '%Y-%m';
+                break;
+            default:
+                timeFormat = '%Y-%m-%d';
         }
 
-        // Map dimension to actual column name
-        let dimensionColumn: string;
-        switch (params.dimension) {
-            case 'serverName': dimensionColumn = 'm.serverName'; break;
-            case 'serverId': dimensionColumn = 'm.serverId'; break;
-            case 'payloadMethod': dimensionColumn = 'm.payloadMethod'; break;
-            case 'payloadToolName': dimensionColumn = 'm.payloadToolName'; break;
-            case 'userId': dimensionColumn = 'm.userId'; break;
-            case 'clientId': dimensionColumn = 'm.clientId'; break;
-            case 'clientType': dimensionColumn = 'c.type'; break;
-            case 'sourceIP': dimensionColumn = 'm.sourceIP'; break;
-            default: dimensionColumn = params.dimension;
-        }
+        const dimensionColumn = this.dimensionColumn(params.dimension);
 
         const query = `
-            SELECT 
+            SELECT
                 ${dimensionColumn} as dimension,
                 strftime('${timeFormat}', m.timestamp) as timestamp,
                 COUNT(*) as count
             FROM messages m
-            LEFT JOIN clients c ON m.clientId = c.clientId
             ${whereClause}
             GROUP BY ${dimensionColumn}, strftime('${timeFormat}', m.timestamp)
             HAVING ${dimensionColumn} IS NOT NULL
             ORDER BY timestamp, ${dimensionColumn}
         `;
 
-        const results = await this.db.query(query, queryParams);
+        const results = await this.db.query<{ dimension: string | number; timestamp: string; count: number }>(
+            query,
+            queryParams
+        );
 
-        // Transform results to group by timestamp first
-        const dataByTimestamp = results.rows.reduce((acc: Record<string, Record<string, number>>, row: any) => {
-            if (!acc[row.timestamp]) {
-                acc[row.timestamp] = {};
-            }
-            acc[row.timestamp][row.dimension] = row.count;
-            return acc;
-        }, {});
+        const dataByTimestamp = results.rows.reduce(
+            (acc: Record<string, Record<string, number>>, row: { dimension: string | number; timestamp: string; count: number }) => {
+                if (!acc[row.timestamp]) {
+                    acc[row.timestamp] = {};
+                }
+                acc[row.timestamp][String(row.dimension)] = row.count;
+                return acc;
+            },
+            {}
+        );
 
         return Object.entries(dataByTimestamp).map(([timestamp, counts]) => ({
             timestamp,
-            counts
+            counts,
         }));
     }
 
-    async aggregate(params: {
-        dimension: string;
-        serverName?: string;
-        serverId?: number;
-        userId?: string;
-        clientId?: number;
-        clientType?: string;
-        payloadMethod?: string;
-        payloadToolName?: string;
-        sourceIP?: string;
-        startTime?: string;
-        endTime?: string;
-    }): Promise<Array<{ value: string; count: number }>> {
-        const conditions: string[] = [];
-        const queryParams: any[] = [];
-
-        if (params.serverName) {
-            conditions.push('m.serverName = ?');
-            queryParams.push(params.serverName);
-        }
-        if (params.serverId) {
-            conditions.push('m.serverId = ?');
-            queryParams.push(params.serverId);
-        }
-        if (params.userId) {
-            conditions.push('m.userId = ?');
-            queryParams.push(params.userId);
-        }
-        if (params.clientId) {
-            conditions.push('m.clientId = ?');
-            queryParams.push(params.clientId);
-        }
-        if (params.clientType) {
-            conditions.push('c.type = ?');
-            queryParams.push(params.clientType);
-        }
-        if (params.payloadMethod) {
-            conditions.push('m.payloadMethod = ?');
-            queryParams.push(params.payloadMethod);
-        }
-        if (params.payloadToolName) {
-            conditions.push('m.payloadToolName = ?');
-            queryParams.push(params.payloadToolName);
-        }
-        if (params.sourceIP) {
-            conditions.push('m.sourceIP = ?');
-            queryParams.push(params.sourceIP);
-        }
-        if (params.startTime) {
-            conditions.push("date(m.timestamp) >= date(?)");
-            queryParams.push(params.startTime);
-        }
-        if (params.endTime) {
-            conditions.push("date(m.timestamp) <= date(?)");
-            queryParams.push(params.endTime);
-        }
-
-        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-        // Map dimension to actual column name
-        let dimensionColumn: string;
-        switch (params.dimension) {
-            case 'serverName': dimensionColumn = 'm.serverName'; break;
-            case 'serverId': dimensionColumn = 'm.serverId'; break;
-            case 'payloadMethod': dimensionColumn = 'm.payloadMethod'; break;
-            case 'payloadToolName': dimensionColumn = 'm.payloadToolName'; break;
-            case 'userId': dimensionColumn = 'm.userId'; break;
-            case 'clientId': dimensionColumn = 'm.clientId'; break;
-            case 'clientType': dimensionColumn = 'c.type'; break;
-            case 'sourceIP': dimensionColumn = 'm.sourceIP'; break;
-            default: dimensionColumn = params.dimension;
-        }
+    async aggregate(
+        params: {
+            dimension: string;
+        } & MessageAnalyticsFilter
+    ): Promise<Array<{ value: string; count: number }>> {
+        const { clause: whereClause, queryParams } = this.buildAnalyticsWhere(params);
+        const dimensionColumn = this.dimensionColumn(params.dimension);
 
         const query = `
-            SELECT 
+            SELECT
                 ${dimensionColumn} as value,
                 COUNT(*) as count
             FROM messages m
-            LEFT JOIN clients c ON m.clientId = c.clientId
             ${whereClause}
             GROUP BY ${dimensionColumn}
             HAVING ${dimensionColumn} IS NOT NULL
@@ -449,113 +354,37 @@ export class SqliteMessageModel extends MessageModel {
         `;
 
         const results = await this.db.query(query, queryParams);
-        return results.rows.map(row => ({
+        return results.rows.map((row) => ({
             value: String(row.value),
-            count: Number(row.count)
+            count: Number(row.count),
         }));
     }
 
-    async getDimensionValues(params: {
-        dimensions: string[];
-        serverName?: string;
-        serverId?: number;
-        userId?: string;
-        clientId?: number;
-        clientType?: string;
-        payloadMethod?: string;
-        payloadToolName?: string;
-        sourceIP?: string;
-        startTime?: string;
-        endTime?: string;
-    }): Promise<Record<string, string[]>> {
-        const conditions: string[] = [];
-        const queryParams: any[] = [];
+    async getDimensionValues(
+        params: {
+            dimensions: string[];
+        } & MessageAnalyticsFilter
+    ): Promise<Record<string, string[]>> {
+        const { clause: whereClause, queryParams } = this.buildAnalyticsWhere(params);
 
-        if (params.serverName) {
-            conditions.push('m.serverName = ?');
-            queryParams.push(params.serverName);
-        }
-        if (params.serverId) {
-            conditions.push('m.serverId = ?');
-            queryParams.push(params.serverId);
-        }
-        if (params.userId) {
-            conditions.push('m.userId = ?');
-            queryParams.push(params.userId);
-        }
-        if (params.clientId) {
-            conditions.push('m.clientId = ?');
-            queryParams.push(params.clientId);
-        }
-        if (params.clientType) {
-            conditions.push('c.type = ?');
-            queryParams.push(params.clientType);
-        }
-        if (params.payloadMethod) {
-            conditions.push('m.payloadMethod = ?');
-            queryParams.push(params.payloadMethod);
-        }
-        if (params.payloadToolName) {
-            conditions.push('m.payloadToolName = ?');
-            queryParams.push(params.payloadToolName);
-        }
-        if (params.sourceIP) {
-            conditions.push('m.sourceIP = ?');
-            queryParams.push(params.sourceIP);
-        }
-        if (params.startTime) {
-            conditions.push("date(m.timestamp) >= date(?)");
-            queryParams.push(params.startTime);
-        }
-        if (params.endTime) {
-            conditions.push("date(m.timestamp) <= date(?)");
-            queryParams.push(params.endTime);
-        }
+        const dimensionColumns = params.dimensions.map((dim) => this.dimensionColumn(dim));
 
-        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-        // Map dimensions to actual column names
-        const dimensionColumns = params.dimensions.map(dim => {
-            switch (dim) {
-                case 'serverName': return 'm.serverName';
-                case 'serverId': return 'm.serverId';
-                case 'payloadMethod': return 'm.payloadMethod';
-                case 'payloadToolName': return 'm.payloadToolName';
-                case 'userId': return 'm.userId';
-                case 'clientId': return 'm.clientId';
-                case 'clientType': return 'c.type';
-                case 'sourceIP': return 'm.sourceIP';
-                default: return dim;
-            }
-        });
-
-        const queries = dimensionColumns.map(column => `
+        const queries = dimensionColumns.map((column) => {
+            const tail = whereClause ? `${whereClause} AND ${column} IS NOT NULL` : `WHERE ${column} IS NOT NULL`;
+            return `
             SELECT DISTINCT ${column} as value
             FROM messages m
-            LEFT JOIN clients c ON m.clientId = c.clientId
-            ${whereClause}
-            AND ${column} IS NOT NULL
+            ${tail}
             ORDER BY ${column}
-        `);
-
-        const results = await Promise.all(
-            queries.map(query => this.db.query(query, queryParams))
-        );
-
-        /*
-        logger.debug('Dimension results:', {
-            dimensions: params.dimensions,
-            results: results.map(r => r.rows.length)
+        `;
         });
-        */
 
-        const response = params.dimensions.reduce((acc, dim, i) => {
-            acc[dim] = results[i].rows.map(row => String(row.value));
+        const results = await Promise.all(queries.map((query) => this.db.query(query, queryParams)));
+
+        return params.dimensions.reduce((acc, dim, i) => {
+            acc[dim] = results[i].rows.map((row) => String((row as { value: unknown }).value));
             return acc;
         }, {} as Record<string, string[]>);
-
-        // logger.debug('Final response:', response);
-        return response;
     }
 
     async analyze(): Promise<void> {
@@ -563,7 +392,6 @@ export class SqliteMessageModel extends MessageModel {
     }
 
     async deleteOldMessagesWithoutAlerts(beforeDate: string): Promise<{ deletedCount: number; preservedCount: number }> {
-        // First, count messages that would be preserved (have alerts)
         const preservedCountResult = await this.db.query<{ preservedCount: number }>(
             `SELECT COUNT(DISTINCT m.messageId) as preservedCount
              FROM messages m
@@ -573,41 +401,26 @@ export class SqliteMessageModel extends MessageModel {
             [beforeDate]
         );
 
-        // Delete messages that are old and don't have any alerts
-        const deleteResult = await this.db.query<{ deletedCount: number }>(
-            `DELETE FROM messages 
-             WHERE createdAt < ? AND NOT EXISTS (
-                 SELECT 1 FROM alerts a WHERE a.messageId = messages.messageId
-             ) RETURNING COUNT(*) as deletedCount`,
+        const countResult = await this.db.query<{ deletedCount: number }>(
+            `SELECT COUNT(*) as deletedCount
+             FROM messages m
+             WHERE m.createdAt < ? AND NOT EXISTS (
+                 SELECT 1 FROM alerts a WHERE a.messageId = m.messageId
+             )`,
             [beforeDate]
         );
 
-        // If RETURNING is not supported, use a separate count query
-        if (!deleteResult.rows[0]) {
-            const countResult = await this.db.query<{ deletedCount: number }>(
-                `SELECT COUNT(*) as deletedCount
-                 FROM messages m
-                 WHERE m.createdAt < ? AND NOT EXISTS (
-                     SELECT 1 FROM alerts a WHERE a.messageId = m.messageId
-                 )`,
-                [beforeDate]
-            );
-            await this.db.execute(
-                `DELETE FROM messages 
-                 WHERE createdAt < ? AND NOT EXISTS (
-                     SELECT 1 FROM alerts a WHERE a.messageId = messages.messageId
-                 )`,
-                [beforeDate]
-            );
-            return { 
-                deletedCount: countResult.rows[0].deletedCount,
-                preservedCount: preservedCountResult.rows[0].preservedCount
-            };
-        }
+        await this.db.execute(
+            `DELETE FROM messages
+             WHERE createdAt < ? AND NOT EXISTS (
+                 SELECT 1 FROM alerts a WHERE a.messageId = messages.messageId
+             )`,
+            [beforeDate]
+        );
 
-        return { 
-            deletedCount: deleteResult.rows[0].deletedCount,
-            preservedCount: preservedCountResult.rows[0].preservedCount
+        return {
+            deletedCount: countResult.rows[0].deletedCount,
+            preservedCount: preservedCountResult.rows[0].preservedCount,
         };
     }
 
@@ -620,7 +433,7 @@ export class SqliteMessageModel extends MessageModel {
              )`,
             [beforeDate]
         );
-        
+
         return result.rows[0].count;
     }
 }

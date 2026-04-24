@@ -58,26 +58,23 @@ async function getAppliedMigrations(): Promise<string[]> {
 
 async function validateSchemaVersion(): Promise<void> {
   const db = await getDb();
-  
-  // Check if schema_migrations table exists
+
   const tableExists = (await db.queryOne<{ count: number }>(
     "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='schema_migrations'"
   ))?.count === 1;
 
-  if (tableExists) {
-    // Check if version 001 has been applied
-    const version001Exists = (await db.queryOne<{ count: number }>(
-      "SELECT COUNT(*) as count FROM schema_migrations WHERE version = '001'"
-    ))?.count === 1;
+  if (!tableExists) {
+    return;
+  }
 
-    if (version001Exists) {
-      throw new Error(
-        'ToolVault schema version 001 is deprecated and cannot be upgraded.\n\n' +
-        'Please run the following command to uninstall ToolVault (restore your client configurations and delete your existing ToolVault database):\n' +
-        '   toolvault --clean\n' +
-        'Then restart ToolVault to create a new database, at which point you may re-import your clients.'
-      );
-    }
+  const legacy = await db.queryOne<{ count: number }>(
+    `SELECT COUNT(*) as count FROM schema_migrations WHERE version IN ('002', '003')`
+  );
+  if (legacy && legacy.count > 0) {
+    throw new Error(
+      'This database uses a removed pre-Arcade schema (migrations 002/003).\n\n' +
+      'Delete your SQLite database file and restart the app to create a fresh Arcade schema (migration 001).'
+    );
   }
 }
 

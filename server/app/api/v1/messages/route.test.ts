@@ -38,24 +38,19 @@ describe('Messages API', () => {
     // Mock model responses
     mockMessageModel.list.mockResolvedValue({
       messages: [{
-        id: 1,
+        messageId: 1,
         timestamp: '2024-02-20T12:00:00Z',
         userId: 'user1',
-        clientId: 'client1',
-        sourceIP: '127.0.0.1',
-        serverName: 'test-server',
-        sessionId: 'session1',
-        messageId: 'msg1',
-        method: 'test.method',
-        params: '{"param1": "value1"}',
-        result: '{"result1": "value1"}',
-        error: null,
-        requestAction: 'request',
-        rawParams: '{"raw1": "value1"}',
-        responseAction: 'response',
-        rawResult: '{"rawResult1": "value1"}',
-        created_at: '2024-02-20T12:00:00Z',
-        updated_at: '2024-02-20T12:00:00Z'
+        source: 'arcade',
+        payloadToolkit: 'test-toolkit',
+        payloadToolVersion: '1.0.0',
+        origin: 'client',
+        payloadMessageId: 'msg1',
+        payloadMethod: 'test.method',
+        payloadToolName: 'test-tool',
+        hasError: false,
+        createdAt: '2024-02-20T12:00:00Z',
+        alerts: false
       }],
       pagination: {
         total: 50,
@@ -83,7 +78,7 @@ describe('Messages API', () => {
     });
   });
 
-  it('should handle server name filter', async () => {
+  it('should handle payloadToolkit filter', async () => {
     mockMessageModel.list.mockResolvedValue({
       messages: [],
       pagination: {
@@ -96,13 +91,13 @@ describe('Messages API', () => {
       }
     });
 
-    const request = new NextRequest('http://localhost:3000/api/v1/messages?serverName=test-server');
+    const request = new NextRequest('http://localhost:3000/api/v1/messages?payloadToolkit=test-toolkit');
     const response = await GET(request);
-    const data = await response.json();
+    await response.json();
 
     expect(response.status).toBe(StatusCodes.OK);
     expect(mockMessageModel.list).toHaveBeenCalledWith(
-      { serverName: 'test-server' },
+      { payloadToolkit: 'test-toolkit' },
       expect.any(Object)
     );
   });

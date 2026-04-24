@@ -9,13 +9,10 @@ import { getSeverityLevel } from '@/lib/severity';
 import { useDimensions } from '@/app/hooks/useDimensions';
 import { useLayout } from '@/app/contexts/LayoutContext';
 import { useAlerts } from '@/app/contexts/AlertsContext';
-import { getClientIcon } from '@/lib/client-icons';
 import { applyModificationsToPayload, resolveFindings } from '@/lib/policy-engine/utils/messageModifications';
 import { MessageActionsData } from '@/lib/models/types/messageAction';
 import { MessageOrigin } from '@/lib/jsonrpc';
 import { AppliedFieldModification, isAppliedFieldModification, isAppliedMessageReplacement } from '@/lib/policy-engine/types/core';
-import { getServerIconUrl } from '@/lib/utils/githubImageUrl';
-import { Server } from '@/lib/types/server';
 import { AlertsMenu } from '@/app/components/alerts/AlertsMenu';
 import { log } from '@/lib/logging/console';
 
@@ -26,11 +23,10 @@ export default function MessageDetailsPage() {
   const [message, setMessage] = useState<MessageData | null>(null);
   const [alerts, setAlerts] = useState<AlertReadData[]>([]);
   const [messageActions, setMessageActions] = useState<MessageActionsData | null>(null);
-  const [server, setServer] = useState<Server | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAlertId, setSelectedAlertId] = useState<number | null>(null);
   const { dimensions } = useDimensions({
-    dimensions: ['serverId', 'clientId', 'policyId'],
+    dimensions: ['policyId', 'source'],
     autoFetch: true
   });
   const { setHeaderTitle } = useLayout();
@@ -60,22 +56,6 @@ export default function MessageDetailsPage() {
 
         if (messageData.isSuccess()) {
           setMessage(messageData.payload);
-          
-          // Fetch server data if we have a serverId
-          if (messageData.payload.serverId) {
-            try {
-              const serverResponse = await fetch(`/api/v1/servers/${messageData.payload.serverId}`);
-              if (serverResponse.ok) {
-                const serverData = await serverResponse.json();
-                const serverDataResponse = new JsonResponseFetch<Server>(serverData, 'server');
-                if (serverDataResponse.isSuccess()) {
-                  setServer(serverDataResponse.payload);
-                }
-              }
-            } catch (error) {
-              log.error('[MessageDetails] Error fetching server data:', error);
-            }
-          }
         }
 
         if (alertsData.isSuccess()) {
@@ -143,11 +123,6 @@ export default function MessageDetailsPage() {
   if (!message) {
     return <div>Message not found</div>;
   }
-
-  const getClientName = (clientId: string | undefined) => {
-    if (!clientId) return '-';
-    return dimensions.getLabel('clientId', clientId) || clientId;
-  };
 
   // The selection context can be an alertId or a messageActionId.  If alertId, we highlight any ActionEvent content modifications for that alertId.
   // If messageActionId, we highlight any ActionEvent content modifications for that messageActionId.  Right now we only have alerts displayed and
@@ -299,101 +274,71 @@ export default function MessageDetailsPage() {
     <div className="flex flex-col h-full">
       {/* Message Details */}
       <div className="bg-white rounded-lg shadow p-4 mb-4 flex-shrink-0">
-        {/* First line: Client <--> Server with timestamp */}
-        <div className="flex items-center justify-between text-lg font-bold mb-4">
-          <div className="flex items-center gap-2">
-            <span>Client:</span>
-            <img
-              src={getClientIcon(message.clientType || 'generic')}
-              alt={`${message.clientType || 'generic'} icon`}
-              className="w-6 h-6"
-            />
-            <a href={`/clients/${message.clientId}`} className="text-blue-600 hover:underline">
-              {message.clientId ? dimensions.getLabel('clientId', message.clientId.toString()) || `Client ${message.clientId}` : 'Unknown'}
-            </a>
-            <svg 
-              className="w-8 h-8 mx-2 text-gray-400" 
-              viewBox="0 0 32 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            >
-              {message.origin === 'server' ? (
-                // Arrow pointing left (server -> client)
+        <div className="flex flex-wrap gap-4 md:gap-8 lg:gap-12">
+          <div>
+            <div className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Source</div>
+            <div className="text-base flex items-center gap-2 min-h-[1.5rem]">
+              {message.source?.toLowerCase() === 'arcade' ? (
                 <>
-                  <path d="M4 12h24" />
-                  <path d="M8 8l-4 4 4 4" />
+                  <span className="inline-flex h-6 w-6 shrink-0 overflow-hidden rounded-full ring-1 ring-gray-200 bg-white">
+                    <img
+                      src="/arcade-favicon.jpg"
+                      alt=""
+                      width={24}
+                      height={24}
+                      className="h-full w-full object-cover"
+                    />
+                  </span>
+                  <span className="capitalize">
+                    {dimensions.getLabel('source', message.source) || message.source}
+                  </span>
                 </>
-              ) : message.origin === 'client' && !message.timestampResult ? (
-                // Arrow pointing right (client -> server, no response yet)
-                <>
-                  <path d="M4 12h24" />
-                  <path d="M24 8l4 4-4 4" />
-                </>
+              ) : message.source ? (
+                <span>{dimensions.getLabel('source', message.source) || message.source}</span>
               ) : (
-                // Bidirectional arrow (default case)
-                <>
-                  <path d="M4 12h24" />
-                  <path d="M8 8l-4 4 4 4" />
-                  <path d="M24 8l4 4-4 4" />
-                </>
+                '—'
               )}
-            </svg>
-            <span>Server:</span>
-            <img
-              src={getServerIconUrl(server)}
-              alt="MCP icon"
-              className="w-6 h-6"
-            />
-            <a href={`/servers/${message.serverId}`} className="text-blue-600 hover:underline">
-              {server?.name || message.serverName}
-            </a>
-          </div>
-          <span>{new Date(message.timestamp).toLocaleString()}</span>
-        </div>
-
-        {/* Details Grid */}
-        <div className="flex gap-4 md:gap-8 lg:gap-12">
-          {/* Method */}
-          <div>
-            <div className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Method</div>
-            <div className="text-base">{message.payloadMethod}</div>
-          </div>
-
-          {/* Tool */}
-          {message.payloadToolName && (
-            <div>
-              <div className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Tool</div>
-              <div className="text-base">{message.payloadToolName}</div>
             </div>
-          )}
-
-          {/* Session ID */}
-          <div>
-            <div className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">MCP Session ID</div>
-            <div className="text-base font-mono">{message.sessionId}</div>
           </div>
 
-          {/* Message ID */}
-          {message.payloadMessageId && (
-            <div>
-              <div className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">MCP Message ID</div>
-              <div className="text-base font-mono">{message.payloadMessageId}</div>
-            </div>
-          )}
+          <div>
+            <div className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Tool</div>
+            <div className="text-base">{message.payloadToolName || '—'}</div>
+          </div>
 
-          {/* User */}
+          <div>
+            <div className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Toolkit</div>
+            <div className="text-base font-mono text-gray-900">{message.payloadToolkit || '—'}</div>
+          </div>
+
+          <div>
+            <div className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Version</div>
+            <div className="text-base font-mono text-gray-900">{message.payloadToolVersion || '—'}</div>
+          </div>
+
+          <div>
+            <div className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">MCP Message ID</div>
+            <div className="text-base font-mono break-all">{message.payloadMessageId || '—'}</div>
+          </div>
+
           <div>
             <div className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">User</div>
             <div className="text-base">{message.userId}</div>
           </div>
 
-          {/* Source IP */}
           <div>
-            <div className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Source IP</div>
-            <div className="text-base">{message.sourceIP}</div>
+            <div className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Origin</div>
+            <div className="text-base capitalize">{message.origin}</div>
+          </div>
+
+          <div>
+            <div className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Date</div>
+            <div className="text-base">{new Date(message.timestamp).toLocaleString()}</div>
+            {message.timestampResult ? (
+              <div className="text-xs text-gray-500 mt-1">
+                Result: {new Date(message.timestampResult).toLocaleString()}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

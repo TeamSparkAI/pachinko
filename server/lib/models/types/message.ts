@@ -1,17 +1,16 @@
 import { MessageOrigin } from "@/lib/jsonrpc";
-import { ClientType } from "@/lib/types/clientType";
+
+/** Ingest origin for a row (e.g. `arcade` from Engine webhooks). */
+export type MessageSource = string;
 
 export interface MessageData {
     messageId: number;
     timestamp: string;
     timestampResult?: string;
     userId: string;
-    clientId?: number;
-    clientType?: ClientType;
-    sourceIP: string;
-    serverId: number;
-    serverName: string;
-    sessionId: string;
+    source: MessageSource | null;
+    payloadToolkit: string;
+    payloadToolVersion: string;
     origin: MessageOrigin;
     payloadMessageId: string;
     payloadMethod: string;
@@ -23,39 +22,42 @@ export interface MessageData {
     alerts?: boolean;
 }
 
-// Optimized data interface for message list responses
 export interface MessageListItemData {
     messageId: number;
     timestamp: string;
     timestampResult?: string;
     userId: string;
-    clientId?: number;
-    clientType?: ClientType;
-    sourceIP: string;
-    serverId?: number;
-    serverName: string;
-    sessionId: string;
+    source: MessageSource | null;
+    payloadToolkit: string;
+    payloadToolVersion: string;
     origin: MessageOrigin;
     payloadMessageId: string;
     payloadMethod: string;
     payloadToolName: string;
-    hasError: boolean; // Computed field based on payloadError presence
+    hasError: boolean;
     createdAt: string;
     alerts?: boolean;
 }
 
 export interface MessageFilter {
     origin?: MessageOrigin;
-    serverName?: string;
+    userId?: string;
+    source?: string;
+    payloadToolkit?: string;
     payloadMethod?: string;
     payloadMessageId?: string;
     payloadToolName?: string;
+    startTime?: string;
+    endTime?: string;
+}
+
+/** Filters passed to time-series / aggregate / dimension value queries. */
+export interface MessageAnalyticsFilter {
     userId?: string;
-    clientId?: number;
-    serverId?: number;
-    clientType?: string;
-    sourceIP?: string;
-    sessionId?: string;
+    source?: string;
+    payloadToolkit?: string;
+    payloadMethod?: string;
+    payloadToolName?: string;
     startTime?: string;
     endTime?: string;
 }

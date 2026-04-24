@@ -113,16 +113,16 @@ export function AlertFilters({
           </div>
         )}
 
-        {!('serverId' in initialFilters) && (
-          <div className="min-w-[200px] max-w-[300px]">
-            <label className="block text-sm text-gray-600 mb-1">Server</label>
+        {!('source' in initialFilters) && (
+          <div className="min-w-[160px] max-w-[240px]">
+            <label className="block text-sm text-gray-600 mb-1">Source</label>
             <select
-              value={localFilters.serverId?.toString() || ''}
-              onChange={(e) => handleFilterChange('serverId', e.target.value ? Number(e.target.value) : undefined)}
+              value={localFilters.source || ''}
+              onChange={(e) => handleFilterChange('source', e.target.value || undefined)}
               className="w-full px-1.5 py-1 text-sm border rounded"
             >
-              <option value="">All Servers</option>
-              {dimensions.getOptions('serverId').map(option => (
+              <option value="">All sources</option>
+              {dimensions.getOptions('source').map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -131,16 +131,16 @@ export function AlertFilters({
           </div>
         )}
 
-        {!('clientId' in initialFilters) && (
+        {!('payloadToolkit' in initialFilters) && (
           <div className="min-w-[200px] max-w-[300px]">
-            <label className="block text-sm text-gray-600 mb-1">Client</label>
+            <label className="block text-sm text-gray-600 mb-1">Toolkit</label>
             <select
-              value={localFilters.clientId?.toString() || ''}
-              onChange={(e) => handleFilterChange('clientId', e.target.value ? Number(e.target.value) : undefined)}
+              value={localFilters.payloadToolkit || ''}
+              onChange={(e) => handleFilterChange('payloadToolkit', e.target.value || undefined)}
               className="w-full px-1.5 py-1 text-sm border rounded"
             >
-              <option value="">All Clients</option>
-              {dimensions.getOptions('clientId').map(option => (
+              <option value="">All toolkits</option>
+              {dimensions.getOptions('payloadToolkit').map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
