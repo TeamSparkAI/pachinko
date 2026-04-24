@@ -25,10 +25,6 @@ There can be multiple content modification actions within and across policies an
     
 These are specific cases, but we also want to support these kinds of things generally:
 
-For server pinning, when we receive a response to an initialize or tools/list message, we want to compare that to stored payloads and take action if they don't match
-- The likely action is return MCP protocol error (error code and message)
-- There isn't a "text match" (with or without regex), so text replacement actions wouldn't make sense as options on this kind of policy
-
 For secret leak detection, we want to run all message text against a list of secrets we manange, and if found, take the kind
 of text modification actions we currenty take on regex matching filters.  In contrast to a regex validator that matches a regex
 and then just validates the match, this kind of validator (filter) wouldn't have a regex and would just take each text chunk (each message
@@ -48,7 +44,6 @@ Conditons:
 - Keyword match (from keyword list)
 - Secret detection (using configured secret manager)
 - DLP Analysis (Data Loss Prevention using configured ICAP endpoint)
-- Pinned server validation
 - Message validation (fields, format, range and length, etc) 
 - AI Threat Detection (AI-powered analysis to detect malicious prompt injection and novel attacks in tool responses)
 
@@ -96,8 +91,8 @@ Some conditions or actions could require configuration
 Some conditions or actions may need more context than just the text when being called during processing
 - They will need their application-level config, if any
 - They will need their params
-- They may need to know the serverId (for pinning validator)
-- They may need access to models/data (pinning validator) or other servies (secrets manager service for secrets condition)
+- They may need to know the serverId
+- They may need access to models/data or other services (e.g. secrets manager for a secrets condition)
 
 ## New Conditions and Actions system
 
@@ -138,7 +133,7 @@ Those action events are evaluted as a group to determine the final content modif
 Some findings may indicate a text match (regex condition, secrets manager condition, etc)
 - These findings may be handled specially by actions that can operate on matches (specifically the built-in rewrite action)
 Some findings may indicate referenced text that is not a match
-- Example: Pinning condition identified new tool (will indicate tool in payload, but not as a text "match")
+- Example: A structural validator flags an issue with a specific field path without a regex “match” span
 - UX can still highlight referenced text in payload, but match processing actions will not process it
 Some findings may indicate an issue, but no referenced text (location)
 - Example: Message validator - Message too large
@@ -201,8 +196,6 @@ We could allow policy conditions to produce general purpose state that actions c
 ## Other 
 
 Examples:
-- A pinning validator would be a "message" validator that doesn't produce matches
-  - If pinning match failed, we'd want to indicate some details in the alert
 - An MCP message validator would be a "message" validator that doesn't produce matches
   - If message validation failed, we'd want to indicate some details in the alert
 - A DLP validator would be a "message" validator that does produce matches
@@ -261,11 +254,6 @@ PolicyCondition
 - name: 'Visa'
 - notes: 'Matches Visa card format and checksum;
 - params: { regex: 'xxxxx', keywords: 'yyyy, zzzz', validator: 'luhn' }
-
-PolicyCondition
-- type: 'pinning'
-- params: {}
-
 
 ### Policy Actions (policy model)
 
@@ -350,7 +338,7 @@ It would be nice to have a list of actions also (there would be no other way to 
 
 ## TODO LATER
 
-Implement granular pinning findings (highlight new, changed tools, missing tool is finding without location)
+Implement granular structural-validator findings (e.g. highlight field paths without text match spans)
 Display policy actions in message details (with new selection/highlighting logic)
 Implement policy config (condition/action) UX (need a multi-config element for this)
 - Start implementing more conditions/actions

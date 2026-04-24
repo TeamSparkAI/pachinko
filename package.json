@@ -1,19 +1,19 @@
 {
-  "name": "toolvault",
+  "name": "pachinko",
   "version": "1.1.0",
-  "description": "ToolVault: An Integrated platform for AI agent tool management and security",
+  "description": "Policy engine and web UI (monorepo root — application lives in /server)",
+  "private": true,
+  "workspaces": [
+    "server"
+  ],
   "main": "index.js",
   "types": "index.d.ts",
   "bin": {
-    "tsh": "./dist/tsh",
     "toolvault": "./dist/toolvault"
   },
-  "workspaces": [
-    "projects/*"
-  ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/TeamSparkAI/toolvault.git"
+    "url": "https://github.com/TeamSparkAI/pachinko.git"
   },
   "author": "TeamSpark, LLC <support@teamspark.ai>",
   "license": "SEE LICENSE IN LICENSE.md",
@@ -23,42 +23,33 @@
     "mcp",
     "tools",
     "security",
-    "toolvault",
+    "policy",
     "teamspark"
   ],
   "bugs": {
-    "url": "https://github.com/TeamSparkAI/toolvault/issues"
+    "url": "https://github.com/TeamSparkAI/pachinko/issues"
   },
-  "homepage": "https://github.com/TeamSparkAI/toolvault#readme",
+  "homepage": "https://github.com/TeamSparkAI/pachinko#readme",
   "scripts": {
     "build": "node scripts/build.js",
-    "build:proxy": "npm run build --workspace=projects/proxy",
-    "build:server": "npm run build --workspace=projects/server",
-    "start:server": "./dist/toolvault"
+    "build:next": "npm run build:next --workspace=server",
+    "build:bundle": "npm run build:bundle --workspace=server",
+    "build:prod": "npm run build:prod --workspace=server",
+    "start": "node dist/server.js",
+    "start:prod": "node dist/server.js",
+    "start:dev": "npm run start:dev --workspace=server",
+    "start:server": "./dist/toolvault",
+    "migrate": "npm run migrate --workspace=server",
+    "test": "npm run test --workspace=server",
+    "test:watch": "npm run test:watch --workspace=server",
+    "test:coverage": "npm run test:coverage --workspace=server",
+    "test:e2e": "npm run test:e2e --workspace=server",
+    "load-sample-data": "npm run load-sample-data --workspace=server",
+    "clean": "npm run clean --workspace=server"
   },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.0",
-    "@teamsparkai/mcp-registry-client": "file:../mcp-registry/packages/mcp-registry-client",
-    "@teamsparkai/mcp-registry-ux": "file:../mcp-registry/packages/mcp-registry-ux",
-    "fdir": "^6.4.6",
-    "http-status-codes": "^2.3.0",
-    "jsonc-parser": "^3.3.1",
-    "jsonwebtoken": "^9.0.2",
-    "loglevel": "^1.9.2",
-    "toolvault-bridge": "file:projects/bridge",
-    "next": "^14.2.29",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "recharts": "^2.15.3",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7",
-    "swagger-ui-react": "^5.22.0",
-    "tailwindcss": "^3.4.1",
-    "winston": "^3.17.0",
-    "winston-daily-rotate-file": "^5.0.0",
-            "ws": "^8.18.2",
-        "yaml": "^2.4.0",
-        "sharp": "^0.33.0"
+  "overrides": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   },
   "files": [
     "dist/"
