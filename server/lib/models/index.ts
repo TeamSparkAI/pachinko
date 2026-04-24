@@ -6,8 +6,6 @@ import { SqlitePolicyElementModel } from './sqlite/policyElement';
 import { SqliteMessageActionModel } from './sqlite/messageAction';
 import { initializeDatabase } from './sqlite/init';
 import { DB_CONFIG } from './sqlite/config';
-import { HostModel } from './host';
-import { SqliteHostModel } from './sqlite/host';
 import { SettingsModel } from './sqlite/settings';
 import { AppSettingsModel } from './appSettings';
 import { SqliteAppSettingsModel } from './sqlite/appSettings';
@@ -38,7 +36,6 @@ export class ModelFactory {
     private alertModel: SqliteAlertModel | null = null;
     private policyElementModel: SqlitePolicyElementModel | null = null;
     private messageActionModel: SqliteMessageActionModel | null = null;
-    private hostModel: HostModel | null = null;
     private appSettingsModel: AppSettingsModel | null = null;
 
     private constructor() {}
@@ -124,17 +121,6 @@ export class ModelFactory {
             throw new Error('Message action model not initialized');
         }
         return this.messageActionModel;
-    }
-
-    public async getHostModel(): Promise<HostModel> {
-        if (!this.initialized) {
-            await this.initialize();
-        }
-        if (!this.hostModel) {
-            const settings = new SettingsModel(this.db!);
-            this.hostModel = new SqliteHostModel(settings);
-        }
-        return this.hostModel;
     }
 
     public async getAppSettingsModel(): Promise<AppSettingsModel> {
