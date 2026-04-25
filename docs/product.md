@@ -32,7 +32,7 @@ It complements—not replaces—your MCP clients and servers: you configure Arca
 
 - **Issues and feature requests:** [github.com/TeamSparkAI/pachinko/issues](https://github.com/TeamSparkAI/pachinko/issues)
 - **In-app help:** `/help` — Quick start and links (including repository and TeamSpark site).
-- **Licensing:** See [LICENSE.md](../LICENSE.md) at the repository root.
+- **Licensing:** [MIT License](https://opensource.org/licenses/MIT) — full text in [LICENSE.md](../LICENSE.md) at the repository root.
 
 ---
 
