@@ -7,7 +7,7 @@ const path = require('path');
 console.log('🔨 Starting build orchestration...\n');
 
 const repoRoot = path.join(__dirname, '..');
-const serverRoot = path.join(repoRoot, 'server');
+const appRoot = repoRoot;
 const distDir = path.join(repoRoot, 'dist');
 
 console.log('🧹 Cleaning dist directory...');
@@ -28,9 +28,9 @@ if (fs.existsSync(distDir)) {
 }
 fs.mkdirSync(distDir, { recursive: true });
 
-console.log('🔧 Building Next.js and server bundle (workspace server)...');
+console.log('🔧 Building Next.js and server bundle...');
 try {
-  execSync('npm run build:prod --workspace=server', {
+  execSync('npm run build:prod', {
     stdio: 'inherit',
     cwd: repoRoot
   });
@@ -42,9 +42,10 @@ try {
 
 function copyNextStandalone() {
   const candidates = [
-    path.join(serverRoot, '.next', 'standalone', '.next'),
-    path.join(serverRoot, '.next', 'standalone', 'pachinko-server', '.next'),
-    path.join(serverRoot, '.next', 'standalone', 'server', '.next')
+    path.join(appRoot, '.next', 'standalone', '.next'),
+    path.join(appRoot, '.next', 'standalone', 'pachinko', '.next'),
+    path.join(appRoot, '.next', 'standalone', 'pachinko-server', '.next'),
+    path.join(appRoot, '.next', 'standalone', 'server', '.next')
   ];
   for (const nextSrc of candidates) {
     if (fs.existsSync(nextSrc)) {
@@ -54,7 +55,7 @@ function copyNextStandalone() {
       return true;
     }
   }
-  const standaloneRoot = path.join(serverRoot, '.next', 'standalone');
+  const standaloneRoot = path.join(appRoot, '.next', 'standalone');
   if (fs.existsSync(standaloneRoot)) {
     console.error('❌ Could not find .next under standalone. Contents of', standaloneRoot);
     try {
@@ -71,7 +72,7 @@ if (!copyNextStandalone()) {
 }
 
 console.log('📋 Copying Next.js static assets...');
-const nextStaticSrc = path.join(serverRoot, '.next', 'static');
+const nextStaticSrc = path.join(appRoot, '.next', 'static');
 const nextStaticDest = path.join(distDir, '.next', 'static');
 if (fs.existsSync(nextStaticSrc)) {
   fs.cpSync(nextStaticSrc, nextStaticDest, { recursive: true });
@@ -82,7 +83,7 @@ if (fs.existsSync(nextStaticSrc)) {
 }
 
 console.log('📋 Copying server executable to dist/toolvault...');
-const serverExecutable = path.join(serverRoot, 'dist', 'server.js');
+const serverExecutable = path.join(appRoot, 'dist', 'server.js');
 const serverDest = path.join(distDir, 'toolvault');
 if (!fs.existsSync(serverExecutable)) {
   console.error('❌ Bundled server.js not found at', serverExecutable);
@@ -93,7 +94,7 @@ fs.chmodSync(serverDest, 0o755);
 console.log('✅ Server executable copied to dist/toolvault');
 
 console.log('📋 Copying appData files to dist/appData...');
-const appDataSrc = path.join(serverRoot, 'appData');
+const appDataSrc = path.join(appRoot, 'appData');
 const appDataDest = path.join(distDir, 'appData');
 if (fs.existsSync(appDataSrc)) {
   fs.cpSync(appDataSrc, appDataDest, { recursive: true });
@@ -104,7 +105,7 @@ if (fs.existsSync(appDataSrc)) {
 }
 
 console.log('📋 Copying public assets...');
-const publicSrc = path.join(serverRoot, 'public');
+const publicSrc = path.join(appRoot, 'public');
 const publicDest = path.join(distDir, 'public');
 if (fs.existsSync(publicSrc)) {
   fs.cpSync(publicSrc, publicDest, { recursive: true });

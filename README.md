@@ -16,11 +16,11 @@ Supported operating systems: MacOS, Windows, and Linux
 
 The web UI uses a signed, httpOnly session cookie. The server variable **`PACHINKO_SESSION_JWT_SECRET`** is **only** used to sign (and verify) that cookie. It is not an API key, not a user password, and is not the same as the tenant bearer tokens you create in Settings.
 
-### Local development (`.env` at the **repository or package root**)
+### Local development (`.env` at the **repository root**)
 
-Environment files live next to the `server/` app directory (not inside it): this matches how a checked-out repo or an installed package is usually run, and it keeps secrets out of the `server/` subtree.
+Environment files live at the **repository root** (same directory as `package.json`, `next.config.js`, and `server.ts`), alongside the app source.
 
-1. In the **root directory** of the clone or install (the folder that **contains** `server/`), copy the sample file: `cp .env.example .env.local` (or `.env` — see precedence below)
+1. In the **root directory** of the clone, copy the sample file: `cp .env.example .env.local` (or `.env` — see precedence below)
 2. Set a strong random value for `PACHINKO_SESSION_JWT_SECRET` using either command below, then paste the **entire output line** (no quotes) as the value after `=` in the file
 
 ```bash
@@ -31,7 +31,7 @@ openssl rand -base64 48
 node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
 ```
 
-3. Start the app from `server/` as usual (e.g. `npm run start:prod` or `npm run start:dev` — your current working directory can be `server/`; the files are still read from the **parent** root). The custom server (`server.ts`) and Next config load **`.env`** first, then **`.env.local`**, with the latter **overriding** the former for any duplicate keys. Committed `/.env.example` at the root documents variables; real `.env` files are **gitignored**—do not commit secrets.
+3. From the repository root, run `npm run start:prod` or `npm run start:dev` (or `npm run build` then start the bundled output). The custom server (`server.ts`) and Next config load **`.env`** first, then **`.env.local`**, with the latter **overriding** the former for any duplicate keys. Committed `/.env.example` at the root documents variables; real `.env` files are **gitignored**—do not commit secrets.
 
 ### Without a file (injected environment)
 
