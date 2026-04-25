@@ -1,5 +1,7 @@
 # Pre-hook payload
 
+`context.user_id` is often an email or stable id from the Arcade run; below it uses a placeholder instead of a real address.
+
 ```json
 {
   "context": {
@@ -46,7 +48,7 @@
       }
     ],
     "secrets": ["GITHUB_SERVER_URL"],
-    "user_id": "bob.dickinson@gmail.com"
+    "user_id": "user@example.com"
   },
   "execution_id": "tc_3CnEHHFcnENnaM8mghIVE3I1RaV",
   "inputs": {},
@@ -58,7 +60,7 @@
 }
 ```
 
-# Post-hook payload 
+# Post-hook payload
 
 ```json
 {
@@ -106,7 +108,7 @@
       }
     ],
     "secrets": ["GITHUB_SERVER_URL"],
-    "user_id": "bob.dickinson@gmail.com"
+    "user_id": "user@example.com"
   },
   "execution_id": "tc_3CnEHHFcnENnaM8mghIVE3I1RaV",
   "inputs": {},
