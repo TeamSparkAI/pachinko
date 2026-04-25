@@ -170,6 +170,7 @@ Examples of follow-up hardening (no commitment in v1):
 
 - **OAuth / OIDC:** Map external identity to **`users`** (and **`tenantId`**); keep session payload shape **`userId` + tenantId`** so API scoping stays the same; **`passwordHash`** can be null for SSO-only accounts.
 - **Multi-tenant login UX:** If the same email can exist in multiple tenants, add explicit tenant choice (slug, domain, etc.) at login.
+- **Self-enrollment (sign-up):** A flow distinct from **`/login`** where a new customer **creates an account** and **provisions a new tenant** in one step (e.g. org name + **`tenants`** row with unique **`slug`**, first **`users`** row as admin, then session). Today only the **bootstrap** path seeds the first tenant/user on an empty DB; self-service signup would require product decisions: open registration vs invite-only, email verification, abuse controls (rate limits, CAPTCHA), optional billing/plan selection, and whether the bootstrap user remains a dev-only shortcut or is removed when signup exists.
 
 ---
 

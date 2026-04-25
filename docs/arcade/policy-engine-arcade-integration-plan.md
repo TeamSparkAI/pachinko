@@ -1,204 +1,187 @@
 # Policy engine, messages, and reporting for Arcade webhooks
 
-This document describes how Pachinko runs **policies against Arcade Engine pre/post webhooks** (see [`webhook.yaml`](./webhook.yaml)). **Ingress is Arcade webhooks only** for the shipped product path—no parallel MCP connector in this flow. It combines the **original design intent** with an **as-built** summary so future work is clear.
+This document describes how Pachinko applies **policies** when **Arcade Engine** calls our **pre** and **post** HTTP hooks. Wire shapes follow Arcade’s contract in [`webhook.yaml`](./webhook.yaml). **Authentication** for those routes (tenant API keys, Bearer format) is documented in [`docs/auth-and-multitenancy.md`](../auth-and-multitenancy.md).
 
-**Auth (as built):** Pre/post require **`Authorization: Bearer`** with a **tenant API key** (`{keyLookupId}.{secret}` from **Settings → API keys**). Arcade’s OpenAPI still names the scheme **`bearerAuth`**; Pachinko resolves the tenant via **`tenant_api_keys`** (see [`docs/auth-and-multitenancy.md`](../auth-and-multitenancy.md)). The legacy app-setting **`filterApiBearerToken`** is removed.
+---
 
-**As-built status (current repo):** Arcade **pre/post** routes, **required** tenant Bearer auth, synthetic **`tools/call`** JSON-RPC ingress, **`MessageFilterService`** persistence, **`PolicyEngine`** + alerts + **`message_actions`**, and OpenAPI/UI for settings and review are **implemented**. The **schema** is **`server/appData/migrations/001_initial_arcade.sql`** (Arcade-first; legacy `002_*` migrations are not used for new installs). **Not implemented vs earlier design notes:** **`toolNames`** applicability (**policies still use `methods[]` vs `payloadMethod`**—see §4). Pre/post correlation uses Arcade **`execution_id`** stored in **`payloadMessageId`** (with the same value as JSON-RPC **`id`**)—no separate column is required.
+## As-built checklist
+
+| Area | Status |
+|------|--------|
+| **Routes** | **`POST /api/v1/webhooks/arcade/pre`** and **`POST /api/v1/webhooks/arcade/post`** (`server/app/api/v1/webhooks/arcade/*/route.ts`) |
+| **Handler** | **`handleArcadeFilterWebhook`** in **`server/lib/webhooks/mcpWebhookFilter.ts`** — validates body, **Bearer-only** tenant auth, synthetic JSON-RPC, **`MessageFilterService.processMessage`** |
+| **Auth** | **`Authorization: Bearer {keyLookupId}.{secret}`**; **`tenant_api_keys`** resolution (no session cookie on webhooks) |
+| **Ingress mapping** | Arcade **`inputs`** → synthetic **`tools/call`** **`params`**; **`output`** / errors → **`result`** / JSON-RPC **`error`** (`server/lib/types/arcadeWebhook.ts`) |
+| **Policy run** | Same stack as other JSON-RPC paths: **`applyPolicies`** → **`PolicyEngine.processMessage`** → **`applyModifications`**; **`RegexCondition`** and other registered conditions |
+| **Persistence** | **`messages`** with **`source: 'arcade'`**; **`payloadMessageId`** = Arcade **`execution_id`** (same as JSON-RPC **`id`**); post updates pre row or inserts orphan **server** row |
+| **Downstream** | **`alerts`**, **`message_actions`** on policy hits / actions |
+| **Schema** | **`server/appData/migrations/001_initial_arcade.sql`** (Arcade-oriented messages columns, tenant-scoped tables) |
+| **Hook URLs in UI** | Settings shows pre/post paths; optional **public base URL** for copy/paste (`EditAppSettingsModal` / app settings) |
+
+**Not implemented:** tenant-level **enable/disable** for pre vs post (both routes always run the full pipeline if called with valid auth). **Not implemented:** policy applicability filters on **tool name** or **toolkit** (see **Follow-up work**).
 
 ---
 
 ## 1. Purpose and scope
 
-**Goal:** Define, apply, and report policies when Arcade calls our **pre** and **post** hooks. Arcade’s wire names are **`inputs`** (pre) and **`output`** (post); in our system those are the **same payloads** we already use everywhere: **`params`** (tool inputs) and **`result`** (tool output). **Policy application does not use a separate Arcade-only model**—Arcade JSON is mapped into **`params` / `result`** (and **`MessageData`** fields) and the same **`RegexCondition`** / engine paths run. Wire-level **`override.inputs` / `override.output`** in [`webhook.yaml`](./webhook.yaml) correspond to mutating those same logical payloads. **`context.user_id`**, **`tool`**, and post execution fields are carried for logging and correlation.
+**Goal:** When Arcade invokes **pre** (before a tool) or **post** (after), run the same policy machinery used elsewhere: conditions and actions over **tool inputs** and **tool output**, with results translated into Arcade’s **`PreHookResult`** / **`PostHookResult`**.
 
-**Direction = `origin` (unchanged):** Arcade **pre** is **client → server** → **`origin: 'client'`**. Arcade **post** is **server → client** → **`origin: 'server'`**. **`either`** applies to both. No separate “hook phase” field.
+**Payload mapping:** Arcade uses **`inputs`** (pre) and **`output`** (post). Internally we treat them as JSON-RPC **`params`** and **`result`** on a synthetic **`tools/call`** message so **`validateJsonRpcMessage`** and **`PolicyEngine`** stay unchanged. Arcade **`override.inputs`** / **`override.output`** correspond to mutating those same logical payloads.
 
-**In scope (implemented):**
+**Direction = `origin`:** Pre → **`origin: 'client'`**. Post → **`origin: 'server'`**. Policy **`origin`** may be **`client`**, **`server`**, or **`either`** (both hooks).
 
-- **POST** `/api/v1/webhooks/arcade/pre` and **`/post`** (see §2).
-- Bearer auth: **`Authorization: Bearer {keyLookupId}.{secret}`** (tenant API key) ↔ Arcade **`bearerAuth`** in [`webhook.yaml`](./webhook.yaml) (§1.1).
-- Map each request into evaluation shape (**`MessageData` + message wrapper**, **`origin`**) with **`params`** ← Arcade **`inputs`** (pre) and **`result`** ← Arcade **`output`** (post), through **`JsonRpcMessageWrapper`** and **`validateJsonRpcMessage`**.
-- Map policy outcomes to **`PreHookResult` / `PostHookResult`** (`code`, `error_message`, `override`).
-- Persist messages with **`source: 'arcade'`**, **`payloadToolkit` / `payloadToolVersion`** from **`tool`**, **`payloadMessageId`** = Arcade **`execution_id`** (same value as JSON-RPC **`id`** on the synthetic message).
-
-**Explicitly out of scope (not documented here):**
-
-- **POST /access**, **GET /health**, and any paths other than pre/post in [`webhook.yaml`](./webhook.yaml).
+**In scope here:** Only the **pre** and **post** policy hooks Pachinko implements. Other paths in [`webhook.yaml`](./webhook.yaml) (e.g. **/access**, **/health**) are out of scope for this document.
 
 ### 1.1 Webhook bearer auth
 
-Arcade lists **`security: bearerAuth`** on `/pre` and `/post` → an **`Authorization: Bearer …`** header. Pachinko expects the value to be a **tenant API key** shown once when the key is created in **Settings**: **`{keyLookupId}.{secret}`** (split on the first dot server-side). **`handleArcadeFilterWebhook`** accepts **Bearer only** (no session cookie); missing or invalid credentials → **401**.
+Arcade’s OpenAPI names the scheme **`bearerAuth`**. Pachinko expects **`Authorization: Bearer`** with a **tenant API key** **`{keyLookupId}.{secret}`** from **Settings → API keys**. Invalid or missing credentials → **401**. Session cookies are not accepted on these routes.
 
 ---
 
-## 2. Arcade webhook contract — pre / post only
+## 2. Arcade webhook contract — pre / post
 
 ### 2.1 Hooks
 
-| Hook | Purpose | Auth (spec) |
-|------|---------|-------------|
-| **POST /pre** | Gate or modify a tool **before** execution | Arcade `bearerAuth` → `Authorization: Bearer` = tenant API key (`keyLookupId.secret`) |
-| **POST /post** | Validate or modify the tool **response** after execution | Same |
+| Hook | Purpose | Pachinko auth |
+|------|---------|----------------|
+| **POST …/pre** | Gate or modify a tool **before** execution | Tenant API key Bearer |
+| **POST …/post** | Validate or modify the tool **response** after execution | Same |
 
-Paths are configurable in Arcade; **payload shapes** are stable.
-
-**`origin` mapping:** **pre** → **`client`**. **post** → **`server`**. **`either`** → both hooks.
+Arcade configures the exact URLs; **JSON bodies** match [`webhook.yaml`](./webhook.yaml).
 
 ### 2.2 Pre-hook (`PreHookRequest`)
 
-- `execution_id`, `tool` (`ToolInfo`: name, toolkit, version, optional metadata), **`inputs`**, **`context`** (incl. `user_id`). **Internally:** treat as **`params`** (tool inputs)—same as today’s pre / client-side policy payload.
+`execution_id`, **`tool`** (name, toolkit, version, …), **`inputs`**, **`context`** (e.g. **`user_id`**). Mapped to a client-origin **`tools/call`** request for policy evaluation.
 
-**Response:** `PreHookResult` — `code`, optional `error_message`, optional `override` (`inputs` / `secrets`) — same logical content as **`params`** overrides.
+**Response:** **`PreHookResult`** — `code`, optional `error_message`, optional **`override`** (`inputs` / `secrets`).
 
 ### 2.3 Post-hook (`PostHookRequest`)
 
-- `execution_id`, `tool`, `context`; optional `inputs`; **`success`**; **`output`** (schema: JSON value per property description in [`webhook.yaml`](./webhook.yaml)); `execution_code`, `execution_error`. **Internally:** treat **`output`** as **`result`** (tool output)—same as today’s post / server-side policy payload.
+`execution_id`, **`tool`**, **`context`**, optional **`inputs`**, **`success`**, **`output`**, execution fields. Mapped to a server-origin JSON-RPC **result** or **error** for evaluation.
 
-**Response:** `PostHookResult` — `code`, optional `error_message`, optional `override.output` — same logical content as **`result`** overrides.
-
----
-
-## 3. What we reuse from the current stack
-
-**Ingress** is implemented in **`server/lib/webhooks/mcpWebhookFilter.ts`** (`handleArcadeFilterWebhook`) and Arcade types/helpers in **`server/lib/types/arcadeWebhook.ts`**. **`MessageFilterService.processMessage`** in **`server/lib/services/messageFilter.ts`** persists and runs **`applyPolicies`**.
-
-We **reuse**:
-
-- **`PolicyData.origin`** (`client` | `server` | `either`) — gates which hook a policy applies to (§2.1).
-- **`PolicyEngine`** + **`RegexCondition`** (and other registered conditions) — evaluate on the payload we supply.
-- **`applyPolicies`** — filters on **`enabled`**, **`origin`**, and **`methods`** (see §4).
-- **`MessageData`** / alerts / **`message_actions`** — for persistence and reporting once populated from Arcade fields.
-
-### 3.1 v1 ingress: synthetic `tools/call` JSON-RPC
-
-**Objective:** Ingress builds a **JSON-RPC 2.0** request or response compatible with **`tools/call`** (including **`result`** / **`error`** on post), runs **`validateJsonRpcMessage`** and **`JsonRpcMessageWrapper`**, and feeds the **same** policy pipeline—**implemented** via **`arcadePreToJsonRpcRequest`**, **`arcadePostSuccessToJsonRpc`**, **`arcadePostFailureToJsonRpc`**, and **`mapProcessedJsonRpcToArcadePreResult` / `mapProcessedJsonRpcToArcadePostResult`**.
-
-| Phase | `origin` | Shape |
-|-------|----------|--------|
-| **Pre** | `client` | Request: `method: "tools/call"`, `params: { name: <tool.name>, arguments: <Arcade inputs> }`. **`id`** ← **`execution_id`**. |
-| **Post** | `server` | Success: **`result`** ← Arcade **`output`**. Failure: JSON-RPC **`error`** from **`execution_error`**. Same **`id`** as pre for correlation. |
-
-**Persistence / UX:** **`payloadMethod`** is **`tools/call`** on the client row; **`payloadToolName`** is taken from synthetic **`params.name`**. **`payloadToolkit` / `payloadToolVersion`** come from **`MessageFilterContext`** populated from **`tool`** in **`syntheticMessageFilterContextForArcade`**.
-
-**Hook responses:** Native **`PreHookResult` / `PostHookResult`** (not the JSON-API `{ meta, … }` envelope used elsewhere).
+**Response:** **`PostHookResult`** — `code`, optional `error_message`, optional **`override.output`**.
 
 ---
 
-## 4. Policy applicability (as-built vs planned)
+## 3. Ingress pipeline (implementation)
 
-### As-built
+**Entry:** **`handleArcadeFilterWebhook`** (`server/lib/webhooks/mcpWebhookFilter.ts`) + types in **`server/lib/types/arcadeWebhook.ts`**.
 
-| Concern | Approach |
-|---------|----------|
-| **Which hook** | **`origin`**: `client` = pre, `server` = post, `either` = both. |
-| **Method list** | **`policy.methods`** (optional JSON array on **`policies`**) compared to **`messageData.payloadMethod`** in **`applyPolicies`**. For Arcade ingress, **`payloadMethod`** is always **`tools/call`**. **Empty or omitted `methods`** ⇒ policy applies to all methods; **non-empty** ⇒ **`tools/call`** must be included for Arcade traffic to match. |
-| **Per-tool name** | **Not** a separate policy field today. Arcade **`tool.name`** is stored as **`payloadToolName`** but is **not** used in **`applyPolicies`** filtering. |
+**Steps:**
 
-### Planned (not shipped)
+1. Parse JSON body; reject malformed shapes with **400** and clear messages (wrong hook on wrong URL, etc.).
+2. **`resolveRequestContext`** — require **Bearer** tenant key; **401** if not authorized.
+3. Build synthetic JSON-RPC via **`arcadePreToJsonRpcRequest`**, **`arcadePostSuccessToJsonRpc`**, **`arcadePostFailureToJsonRpc`**; validate with **`validateJsonRpcMessage`**.
+4. **`MessageFilterService.processMessage`** (`server/lib/services/messageFilter.ts`) — persist/update **`messages`**, run **`applyPolicies`**, create **`alerts`** / **`message_actions`**, apply modifications.
+5. Map back to Arcade with **`mapProcessedJsonRpcToArcadePreResult`** / **`mapProcessedJsonRpcToArcadePostResult`** — **200** with native Arcade result JSON (not the JSON-API **`meta`** envelope used elsewhere).
 
-| Concern | Approach (original design) |
-|---------|----------------------------|
-| **Which tool** | **`toolNames`**: match Arcade **`tool.name`**; retire **`methods`** for Arcade-only applicability. |
+**Synthetic message context:** **`MessageFilterContext`** sets **`source: 'arcade'`**, **`user`** from **`context.user_id`**, **`payloadToolkit`** / **`payloadToolVersion`** from **`tool`**. **`payloadMethod`** on stored **`MessageData`** is **`tools/call`** for pre; **`payloadToolName`** comes from synthetic **`params.name`**.
 
 ---
 
-## 5. Implemented components (Arcade path)
+## 4. Policy applicability (as-built)
 
-1. **Arcade routes** — Pre/post: require valid **tenant API key** Bearer; parse body per [`webhook.yaml`](./webhook.yaml); set **`origin`**; build synthetic **`tools/call`** JSON-RPC; **`MessageFilterService.processMessage`**.
-2. **Applicability** — **`applyPolicies`**: **`enabled`** + **`origin`** + **`methods`** vs **`payloadMethod`** (see §4).
-3. **Conditions / actions** — **`PolicyEngine.processMessage`** then **`applyModifications`**; outcomes mapped to Arcade hook results.
-4. **Persistence** — **`messages`** row on pre; post updates matching row by **`payloadMessageId`** / **`message.messageId`** or creates orphan **server** row if no match; **`alerts`** and **`message_actions`** as today.
+Policies are rows read in **`applyPolicies`** (`server/lib/services/messageFilter.ts`).
+
+| Filter | Behavior |
+|--------|----------|
+| **`enabled`** | Disabled policies are skipped. |
+| **`origin`** | Policy must match message **`origin`** (`client` / `server`), or policy **`origin`** is **`either`**. |
+| **`methods`** | Optional JSON array on the policy. If **non-empty**, the message’s **`payloadMethod`** must be listed. If **empty or omitted**, all methods match. |
+
+**Arcade consequence:** Synthetic traffic uses **`payloadMethod === 'tools/call'`** on the pre path. A policy with a **non-empty** **`methods`** list that does **not** include **`tools/call`** will **never** run on Arcade pre/post. Empty/omitted **`methods`** means “all methods” and is the usual setting for Arcade-only tenants.
+
+**Stored but not used for policy matching today:** **`payloadToolName`** (Arcade **`tool.name`**) and **`payloadToolkit`** / **`payloadToolVersion`** are persisted and available for **UI / analytics filters**, but **`applyPolicies`** does **not** filter on them — only on **`methods`** vs **`payloadMethod`**.
 
 ---
 
-## 6. Messages, persistence, and correlation
+## 5. Messages, persistence, and correlation
 
-- **Correlation** — Arcade **`execution_id`** is stored in **`payloadMessageId`** (and matches JSON-RPC **`id`** on the synthetic message). Post updates the pre row (or creates an orphan server row) by matching on that value—**implemented**; a dedicated **`execution_id`** column is unnecessary.
-- **Analytics / forensics** — **`userId`** from `context.user_id`, **`source`** = `arcade`, **`payloadToolkit` / `payloadToolVersion`** from `tool`, **`origin`**, timestamps, policy hits, alert ids.
+- **Correlation:** Arcade **`execution_id`** is stored in **`payloadMessageId`** and matches JSON-RPC **`id`**. Post updates the existing pre row when it finds a match; otherwise it may create an orphan **server** row.
+- **Forensics:** **`userId`** on the row comes from context (e.g. **`unknown`**), **`source`** = **`arcade`**, toolkit/version from **`tool`**.
 
-### 6.1 Persisted `messages` columns ↔ Arcade (as-built)
+### 5.1 `messages` columns ↔ Arcade (as-built)
 
-Schema: **`server/appData/migrations/001_initial_arcade.sql`**. Legacy columns **`sessionId`**, **`clientId`**, **`serverId`**, **`serverName`**, **`sourceIP`** are **removed** in this migration.
+Schema: **`server/appData/migrations/001_initial_arcade.sql`**. Older client/server/session IP columns are **not** present on **`messages`** in this migration.
 
 | Pachinko column | Arcade **pre** | Arcade **post** | Notes |
 |-----------------|----------------|------------------|--------|
 | **`messageId`** | — | — | Surrogate PK. |
-| **`timestamp`** | Set on pre **create** | Set on orphan **server** **create** if no matching pre | Ingest wall time unless overridden by caller. |
-| **`timestampResult`** | `NULL` | Set on **update** of matched pre row when post succeeds | Post completion time. |
+| **`tenantId`** | Resolved from Bearer | Same | From **`tenant_api_keys`**. |
+| **`timestamp`** | Set on pre **insert** | Set on orphan **server** **insert** if no matching pre | Ingest wall time unless overridden. |
+| **`timestampResult`** | `NULL` | Set when post **updates** a matched pre row on success | Post completion time. |
 | **`origin`** | **`client`** | **`server`** | |
-| **`userId`** | `context.user_id` (or **`unknown`**) | Same | Via **`MessageFilterContext.user`**. |
-| **`source`** | **`arcade`** | **`arcade`** | From synthetic context. |
+| **`userId`** | `context.user_id` trimmed, or **`unknown`** | Same | Via **`MessageFilterContext.user`**. |
+| **`source`** | **`arcade`** | **`arcade`** | |
 | **`payloadToolkit`** | `tool.toolkit` | Same | |
 | **`payloadToolVersion`** | `tool.version` | Same | |
-| **`payloadMessageId`** | **`execution_id`** | **`execution_id`** | Correlation key for pre/post; same value as JSON-RPC **`id`**. |
-| **`payloadMethod`** | **`tools/call`** | From message (often empty on response path) | |
-| **`payloadToolName`** | **`tool.name`** (from **`params.name`**) | May be **empty** on orphan server insert | |
+| **`payloadMessageId`** | **`execution_id`** | **`execution_id`** | Correlation key; same as JSON-RPC **`id`**. |
+| **`payloadMethod`** | **`tools/call`** | From stored/updated message (often sparse on response path) | |
+| **`payloadToolName`** | **`tool.name`** (via synthetic **`params.name`**) | May be **empty** on orphan server insert | |
 | **`payloadParams`** | Synthetic **`params`** `{ name, arguments }` | Unchanged on update of pre row | **`arguments`** ← Arcade **`inputs`**. |
 | **`payloadResult`** | `NULL` at pre | **`result`** after policy on success | |
 | **`payloadError`** | `NULL` at pre | JSON-RPC **error** shape on failure | |
 | **`createdAt`** | DB default | | |
 
-**Not first-class columns:** full **`context`**, **`tool.metadata`**, **`success`**, **`execution_code`**, optional post **`inputs`**—unless copied into params/result by policy, they appear only in webhook logs.
+**Not first-class columns:** full Arcade **`context`**, **`tool.metadata`**, **`success`**, **`execution_code`**, optional post **`inputs`** — unless copied into params/result by policy, they appear in logs / inspection only, not as dedicated DB fields.
 
-**`message_actions`:** Table exists in **`001_initial_arcade.sql`**; rows created when actions run, same as non-Arcade path.
-
----
-
-## 7. Reporting and UX (as-built)
-
-- **Policy editor:** **`origin`** + **`methods`** list (UI copy still references MCP-style method names; for Arcade, **`tools/call`** is the relevant method string).
-- **Message / alert views:** Params / result and **`origin`**; filters include **`source`**, **`payloadToolkit`**, etc.
+**`message_actions`:** Created when actions emit events, same as non-Arcade flows.
 
 ---
 
-## 8. Implementation status (Arcade migration)
+## 6. Reporting and UX (as-built)
 
-| Item | Status |
-|------|--------|
-| Single Arcade-first migration **`001_initial_arcade.sql`** | Done |
-| Messages schema: **`source`**, **`payloadToolkit`**, **`payloadToolVersion`**, no client/server/session columns | Done |
-| **`/webhooks/arcade/pre`** and **`/post`** + required tenant Bearer | Done |
-| Synthetic **`tools/call`** + **`PreHookResult` / `PostHookResult`** | Done |
-| **`applyPolicies`** + alerts + **`message_actions`** | Done |
-| **`toolNames`** + drop **`methods`** for Arcade | **Not done** (see §4, §11) |
+- **Policy editor:** **`origin`** and **`methods`** lists. For Arcade, **`tools/call`** is the method string that matters when **`methods`** is non-empty.
+- **Message / alert views:** Params, result, **`origin`**, filters on **`source`**, **`payloadToolkit`**, etc.
+
+---
+
+## 7. Open questions (product / behavior)
+
+1. **Blocking vs monitoring:** When a policy fires, must the hook always return **`CHECK_FAILED`**, or is **`OK`** with alerts/logging only acceptable? Affects Arcade agent UX.
+2. **Overrides:** How rewrite/redact **actions** map to **`override.inputs`** / **`override.output`** (full replace vs merge) for Arcade consumers.
+
+---
+
+## 8. Follow-up work (not built)
+
+These items are **intentionally not implemented** in the current codebase; they are candidates for future milestones.
+
+### 8.1 Policy scope: tool name and toolkit (and related)
+
+**Today:** Applicability is **`enabled`** + **`origin`** + **`methods`** vs **`payloadMethod`**. For Arcade, **`payloadMethod`** is effectively always **`tools/call`**, so **`methods`** is a weak lever.
+
+**Likely direction:** Extend policies (schema + UI + **`applyPolicies`**) so operators can restrict policies by **tool name** (`payloadToolName` / Arcade **`tool.name`**) and **toolkit** (`payloadToolkit` / Arcade **`tool.toolkit`**), in the same spirit as **`methods`** — e.g. optional allowlists or pattern lists, and optionally **tool version**. Exact UX (replace **`methods`** for Arcade vs additive fields) is TBD.
+
+### 8.2 Per-hook enable / disable (pre vs post)
+
+**Today:** If Arcade calls **`…/pre`** or **`…/post`** with a valid key, Pachinko always runs the pipeline. There is **no** tenant setting to turn off **pre only**, **post only**, or both while leaving routes registered.
+
+**Possible direction:** Tenant or app settings (e.g. booleans or enums) to **skip policy processing** for one hook and return a **no-op success** (or **503** / documented **200** stub — product choice). Arcade can also stop invoking a URL independently; server-side toggles help when the Engine is left configured but the tenant wants Pachinko to ignore one phase.
+
+### 8.3 Other backlog (non-blocking)
+
+- **`EvaluationContext` / engine refactor** if the JSON-RPC wrapper becomes limiting.
+- **Stronger tool identity** (hashes, allowlists) and **match normalization** (case, aliases).
+- **Arcade rate-limit** response mapping (`RATE_LIMIT_EXCEEDED`) if we enforce limits.
+- **OAuth / `context.authorization`**-style conditions if Arcade exposes richer auth context.
+- **Multi–Arcade-org / multi-tenant** operator workflows beyond today’s single-tenant-first UX.
+- **Analytics** — extra dimensions once policy matching grows.
 
 ---
 
 ## 9. References (code)
 
-- [`docs/auth-and-multitenancy.md`](../auth-and-multitenancy.md) — sessions, **`tenant_api_keys`**, webhook auth
+- [`docs/auth-and-multitenancy.md`](../auth-and-multitenancy.md)
 - [`docs/arcade/webhook.yaml`](./webhook.yaml)
 - [`docs/arcade/payloads.md`](./payloads.md)
 - `server/appData/migrations/001_initial_arcade.sql`
+- `server/app/api/v1/webhooks/arcade/pre/route.ts`, `…/post/route.ts`
 - `server/lib/webhooks/mcpWebhookFilter.ts`
 - `server/lib/types/arcadeWebhook.ts`
 - `server/lib/services/messageFilter.ts` — **`applyPolicies`**, **`MessageFilterService`**
-- `server/lib/models/types/policy.ts` — **`methods?: string[]`** (no **`toolNames`** yet)
+- `server/lib/models/types/policy.ts` — **`PolicyData`** (**`methods?: string[]`** today)
 - `server/lib/policy-engine/core/PolicyEngine.ts`
 - `server/lib/policy-engine/conditions/` — e.g. **`RegexCondition`**
 
----
-
-## 10. Open questions (blocking or ambiguous for v1)
-
-1. **Blocking vs monitoring:** When policies “fire,” must we always return **`CHECK_FAILED`**, or is **`OK`** with logging/alerts only allowed? Affects Arcade agent UX.
-2. **Overrides:** How exactly do rewrite/redact **actions** map into **`override.inputs`** / **`override.output`** (full replace vs partial merge) for v1?
-
----
-
-## 11. Future work
-
-The following is **after** the current as-built path (Arcade pre/post, **`origin`**, **`methods`** + **`tools/call`**, regex/actions on **`params` / `result`**).
-
-- **`toolNames`** — Per **`tool.name`** (or pattern) policy applicability; **retire or repurpose `methods`** for Arcade-only UX (**original §4**).
-- **Toolkit / version / user scoping** — Policy filters beyond method/tool name lists.
-- **`EvaluationContext` / engine refactor** — First-class context if we outgrow JSON-RPC wrapper.
-- **Tool identity guarantees** — Version hashes, allowlists, etc.
-- **`RATE_LIMIT_EXCEEDED`** — Whether and how we emit Arcade’s rate-limit code.
-- **OAuth / `context.authorization`** — Conditions on scopes or JWT claims.
-- **Tenancy** — Multiple Arcade orgs vs one deployment.
-- **Richer analytics** — Extra dimensions.
-- **Match semantics** — Case sensitivity / normalization for tool names.
-
-This document should be updated as Arcade’s contract or product choices evolve.
+Update this file when Arcade’s contract or Pachinko’s hook behavior changes.
