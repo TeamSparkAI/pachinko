@@ -11,8 +11,8 @@ import { AddConditionDialog, AddActionDialog } from './AddElementDialog';
 import { validatePolicyElementParams } from '@/app/lib/validation';
 
 interface PolicyDetailsProps {
-  policy: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt'>;
-  onEdit: (updatedPolicy: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt'>) => void;
+  policy: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt' | 'tenantId'>;
+  onEdit: (updatedPolicy: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt' | 'tenantId'>) => void;
   onDelete?: () => void;
   onToggleEnabled?: () => void;
   onCancel?: () => void;

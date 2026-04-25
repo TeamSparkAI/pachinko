@@ -5,16 +5,18 @@ import { MessageOrigin } from '@/lib/jsonrpc';
 
 export class SqliteMessageActionModel extends MessageActionModel {
     private db: DatabaseClient;
+    private readonly tenantId: number;
 
-    constructor(db: DatabaseClient) {
+    constructor(db: DatabaseClient, tenantId: number) {
         super();
         this.db = db;
+        this.tenantId = tenantId;
     }
 
     async findById(messageActionId: number): Promise<MessageActionData | null> {
         const result = await this.db.queryOne<MessageActionData & { action: string; actionEvents: string }>(
-            'SELECT messageActionId, messageId, policyId, origin, severity, action, actionEvents, timestamp, createdAt FROM message_actions WHERE messageActionId = ?',
-            [messageActionId]
+            'SELECT messageActionId, messageId, policyId, origin, severity, action, actionEvents, timestamp, createdAt FROM message_actions WHERE messageActionId = ? AND tenantId = ?',
+            [messageActionId, this.tenantId]
         );
 
         if (!result) {
@@ -23,31 +25,33 @@ export class SqliteMessageActionModel extends MessageActionModel {
 
         return {
             ...result,
-            action: result.action ? JSON.parse(result.action) : null,
-            actionEvents: result.actionEvents ? JSON.parse(result.actionEvents) : []
+            tenantId: this.tenantId,
+            action: result.action ? JSON.parse(result.action as string) : null,
+            actionEvents: result.actionEvents ? JSON.parse(result.actionEvents as string) : [],
         };
     }
 
     async findByMessageId(messageId: number): Promise<MessageActionsData | null> {
         const result = await this.db.query<MessageActionData & { action: string; actionEvents: string }>(
-            'SELECT messageActionId, messageId, policyId, origin, severity, action, actionEvents, timestamp, createdAt FROM message_actions WHERE messageId = ?',
-            [messageId]
+            'SELECT messageActionId, messageId, policyId, origin, severity, action, actionEvents, timestamp, createdAt FROM message_actions WHERE messageId = ? AND tenantId = ?',
+            [messageId, this.tenantId]
         );
         
         if (result.rows.length === 0) {
             return null;
         }
 
-        const actions = result.rows.map(row => ({
+        const actions = result.rows.map((row) => ({
+            tenantId: this.tenantId,
             messageActionId: row.messageActionId,
             messageId: row.messageId,
             policyId: row.policyId,
             origin: row.origin as MessageOrigin,
             severity: row.severity,
-            action: row.action ? JSON.parse(row.action) : null,
-            actionEvents: row.actionEvents ? JSON.parse(row.actionEvents) : [],
+            action: row.action ? JSON.parse(row.action as string) : null,
+            actionEvents: row.actionEvents ? JSON.parse(row.actionEvents as string) : [],
             timestamp: row.timestamp,
-            createdAt: row.createdAt
+            createdAt: row.createdAt,
         }));
 
         return {
@@ -58,11 +62,12 @@ export class SqliteMessageActionModel extends MessageActionModel {
 
     async findByMessageIdAndOrigin(messageId: number, origin: MessageOrigin): Promise<MessageActionData[]> {
         const result = await this.db.query<MessageActionData & { action: string; actionEvents: string }>(
-            'SELECT messageActionId, messageId, policyId, origin, severity, action, actionEvents, timestamp, createdAt FROM message_actions WHERE messageId = ? AND origin = ?',
-            [messageId, origin]
+            'SELECT messageActionId, messageId, policyId, origin, severity, action, actionEvents, timestamp, createdAt FROM message_actions WHERE messageId = ? AND origin = ? AND tenantId = ?',
+            [messageId, origin, this.tenantId]
         );
         
         return result.rows.map(row => ({
+            tenantId: this.tenantId,
             messageActionId: row.messageActionId,
             messageId: row.messageId,
             policyId: row.policyId,
@@ -77,11 +82,12 @@ export class SqliteMessageActionModel extends MessageActionModel {
 
     async findByAlertId(alertId: number): Promise<MessageActionData[]> {
         const result = await this.db.query<MessageActionData & { action: string; actionEvents: string }>(
-            'SELECT messageActionId, messageId, policyId, origin, severity, action, actionEvents, timestamp, createdAt FROM message_actions WHERE actionEvents LIKE ?',
-            [`%${alertId}%`]
+            'SELECT messageActionId, messageId, policyId, origin, severity, action, actionEvents, timestamp, createdAt FROM message_actions WHERE actionEvents LIKE ? AND tenantId = ?',
+            [`%${alertId}%`, this.tenantId]
         );
         
         return result.rows.map(row => ({
+            tenantId: this.tenantId,
             messageActionId: row.messageActionId,
             messageId: row.messageId,
             policyId: row.policyId,
@@ -94,12 +100,12 @@ export class SqliteMessageActionModel extends MessageActionModel {
         }));
     }
 
-    async create(data: Omit<MessageActionData, 'createdAt' | 'messageActionId'>): Promise<MessageActionData> {
+    async create(data: Omit<MessageActionData, "createdAt" | "messageActionId" | "tenantId">): Promise<MessageActionData> {
         const actionJson = JSON.stringify(data.action);
         const actionEventsJson = JSON.stringify(data.actionEvents);
         const result = await this.db.execute(
-            'INSERT INTO message_actions (messageId, policyId, origin, severity, action, actionEvents, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [data.messageId, data.policyId, data.origin, data.severity, actionJson, actionEventsJson, data.timestamp]
+            'INSERT INTO message_actions (tenantId, messageId, policyId, origin, severity, action, actionEvents, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [this.tenantId, data.messageId, data.policyId, data.origin, data.severity, actionJson, actionEventsJson, data.timestamp]
         );
 
         // Get the last inserted ID

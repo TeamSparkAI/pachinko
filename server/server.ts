@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import './loadEnv';
 import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { JsonResponse } from "@/lib/jsonResponse";
 import { ModelFactory } from "@/lib/models";
 import { logger } from "@/lib/logging/server";
+import { getApiTenantOr401 } from "@/lib/api/apiAuth";
 
 const DIMENSION_ALIASES: Record<string, string> = {
     method: "payloadMethod",
@@ -41,7 +42,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
     try {
-        const messageModel = await ModelFactory.getInstance().getMessageModel();
+        const auth = await getApiTenantOr401(request);
+        if (!auth.ok) return auth.response;
+        const messageModel = await ModelFactory.getInstance().getMessageModel(auth.tenantId);
         const url = new URL(request.url);
 
         const dimRaw = url.searchParams.get("dimension") || "";

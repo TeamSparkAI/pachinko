@@ -5,16 +5,18 @@ import { logger } from '@/lib/logging/server';
 
 export class SqlitePolicyElementModel extends PolicyElementModel {
     private db: DatabaseClient;
+    private readonly tenantId: number;
 
-    constructor(db: DatabaseClient) {
+    constructor(db: DatabaseClient, tenantId: number) {
         super();
         this.db = db;
+        this.tenantId = tenantId;
     }
 
     async findById(configId: number): Promise<PolicyElementData | null> {
         const result = await this.db.queryOne<PolicyElementData & { config: string }>(
-            'SELECT * FROM policy_elements WHERE configId = ?',
-            [configId]
+            'SELECT * FROM policy_elements WHERE configId = ? AND tenantId = ?',
+            [configId, this.tenantId]
         );
 
         if (!result) {
@@ -33,10 +35,10 @@ export class SqlitePolicyElementModel extends PolicyElementModel {
         const enabled = data.enabled ?? true;
 
         const result = await this.db.queryOne<PolicyElementData & { config: string }>(
-            `INSERT INTO policy_elements (className, elementType, label, config, enabled) 
-             VALUES (?, ?, ?, ?, ?) 
+            `INSERT INTO policy_elements (tenantId, className, elementType, label, config, enabled) 
+             VALUES (?, ?, ?, ?, ?, ?) 
              RETURNING *`,
-            [data.className, data.elementType, data.label || null, configJson, enabled]
+            [this.tenantId, data.className, data.elementType, data.label || null, configJson, enabled]
         );
 
         if (!result) {
@@ -73,12 +75,12 @@ export class SqlitePolicyElementModel extends PolicyElementModel {
             throw new Error('No fields to update');
         }
 
-        params.push(configId);
+        params.push(configId, this.tenantId);
 
         const result = await this.db.queryOne<PolicyElementData & { config: string }>(
             `UPDATE policy_elements 
              SET ${updates.join(', ')} 
-             WHERE configId = ? 
+             WHERE configId = ? AND tenantId = ?
              RETURNING *`,
             params
         );
@@ -95,10 +97,10 @@ export class SqlitePolicyElementModel extends PolicyElementModel {
     }
 
     async delete(configId: number): Promise<boolean> {
-        const result = await this.db.execute(
-            'DELETE FROM policy_elements WHERE configId = ?',
-            [configId]
-        );
+        const result = await this.db.execute('DELETE FROM policy_elements WHERE configId = ? AND tenantId = ?', [
+            configId,
+            this.tenantId,
+        ]);
 
         return result.changes > 0;
     }
@@ -106,7 +108,8 @@ export class SqlitePolicyElementModel extends PolicyElementModel {
     async list(filter?: PolicyElementFilter): Promise<PolicyElementData[]> {
         let query = 'SELECT * FROM policy_elements';
         const params: any[] = [];
-        const conditions: string[] = [];
+        const conditions: string[] = ['tenantId = ?'];
+        params.push(this.tenantId);
 
         if (filter) {
             if (filter.elementType !== undefined) {
@@ -137,8 +140,8 @@ export class SqlitePolicyElementModel extends PolicyElementModel {
 
     async findByClassName(className: string): Promise<PolicyElementData[]> {
         const result = await this.db.query<PolicyElementData & { config: string }>(
-            'SELECT * FROM policy_elements WHERE className = ? ORDER BY elementType',
-            [className]
+            'SELECT * FROM policy_elements WHERE className = ? AND tenantId = ? ORDER BY elementType',
+            [className, this.tenantId]
         );
 
         // Deserialize JSON fields

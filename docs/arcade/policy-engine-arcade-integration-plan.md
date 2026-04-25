@@ -2,7 +2,9 @@
 
 This document describes how Pachinko runs **policies against Arcade Engine pre/post webhooks** (see [`webhook.yaml`](./webhook.yaml)). **Ingress is Arcade webhooks only** for the shipped product path—no parallel MCP connector in this flow. It combines the **original design intent** with an **as-built** summary so future work is clear.
 
-**As-built status (current repo):** Arcade **pre/post** routes, optional bearer auth, synthetic **`tools/call`** JSON-RPC ingress, **`MessageFilterService`** persistence, **`PolicyEngine`** + alerts + **`message_actions`**, and OpenAPI/UI for settings and review are **implemented**. The **schema** is **`server/appData/migrations/001_initial_arcade.sql`** (Arcade-first; legacy `002_*` migrations are not used for new installs). **Not implemented vs earlier design notes:** **`toolNames`** applicability (**policies still use `methods[]` vs `payloadMethod`**—see §4). Pre/post correlation uses Arcade **`execution_id`** stored in **`payloadMessageId`** (with the same value as JSON-RPC **`id`**)—no separate column is required.
+**Auth (as built):** Pre/post require **`Authorization: Bearer`** with a **tenant API key** (`{keyLookupId}.{secret}` from **Settings → API keys**). Arcade’s OpenAPI still names the scheme **`bearerAuth`**; Pachinko resolves the tenant via **`tenant_api_keys`** (see [`docs/auth-and-multitenancy.md`](../auth-and-multitenancy.md)). The legacy app-setting **`filterApiBearerToken`** is removed.
+
+**As-built status (current repo):** Arcade **pre/post** routes, **required** tenant Bearer auth, synthetic **`tools/call`** JSON-RPC ingress, **`MessageFilterService`** persistence, **`PolicyEngine`** + alerts + **`message_actions`**, and OpenAPI/UI for settings and review are **implemented**. The **schema** is **`server/appData/migrations/001_initial_arcade.sql`** (Arcade-first; legacy `002_*` migrations are not used for new installs). **Not implemented vs earlier design notes:** **`toolNames`** applicability (**policies still use `methods[]` vs `payloadMethod`**—see §4). Pre/post correlation uses Arcade **`execution_id`** stored in **`payloadMessageId`** (with the same value as JSON-RPC **`id`**)—no separate column is required.
 
 ---
 
@@ -15,7 +17,7 @@ This document describes how Pachinko runs **policies against Arcade Engine pre/p
 **In scope (implemented):**
 
 - **POST** `/api/v1/webhooks/arcade/pre` and **`/post`** (see §2).
-- Bearer auth via **`filterApiBearerToken`** ↔ Arcade **`bearerAuth`** (§1.1).
+- Bearer auth: **`Authorization: Bearer {keyLookupId}.{secret}`** (tenant API key) ↔ Arcade **`bearerAuth`** in [`webhook.yaml`](./webhook.yaml) (§1.1).
 - Map each request into evaluation shape (**`MessageData` + message wrapper**, **`origin`**) with **`params`** ← Arcade **`inputs`** (pre) and **`result`** ← Arcade **`output`** (post), through **`JsonRpcMessageWrapper`** and **`validateJsonRpcMessage`**.
 - Map policy outcomes to **`PreHookResult` / `PostHookResult`** (`code`, `error_message`, `override`).
 - Persist messages with **`source: 'arcade'`**, **`payloadToolkit` / `payloadToolVersion`** from **`tool`**, **`payloadMessageId`** = Arcade **`execution_id`** (same value as JSON-RPC **`id`** on the synthetic message).
@@ -26,7 +28,7 @@ This document describes how Pachinko runs **policies against Arcade Engine pre/p
 
 ### 1.1 Webhook bearer auth
 
-Arcade lists **`security: bearerAuth`** on `/pre` and `/post` → **`Authorization: Bearer …`**. Pachinko’s **`filterApiBearerToken`** is that shared secret: when set, Arcade sends it on pre/post; when unset, our hook does not require the header.
+Arcade lists **`security: bearerAuth`** on `/pre` and `/post` → an **`Authorization: Bearer …`** header. Pachinko expects the value to be a **tenant API key** shown once when the key is created in **Settings**: **`{keyLookupId}.{secret}`** (split on the first dot server-side). **`handleArcadeFilterWebhook`** accepts **Bearer only** (no session cookie); missing or invalid credentials → **401**.
 
 ---
 
@@ -36,7 +38,7 @@ Arcade lists **`security: bearerAuth`** on `/pre` and `/post` → **`Authorizati
 
 | Hook | Purpose | Auth (spec) |
 |------|---------|-------------|
-| **POST /pre** | Gate or modify a tool **before** execution | `bearerAuth` → `Authorization: Bearer` |
+| **POST /pre** | Gate or modify a tool **before** execution | Arcade `bearerAuth` → `Authorization: Bearer` = tenant API key (`keyLookupId.secret`) |
 | **POST /post** | Validate or modify the tool **response** after execution | Same |
 
 Paths are configurable in Arcade; **payload shapes** are stable.
@@ -103,7 +105,7 @@ We **reuse**:
 
 ## 5. Implemented components (Arcade path)
 
-1. **Arcade routes** — Pre/post: validate bearer if **`filterApiBearerToken`** set; parse body per [`webhook.yaml`](./webhook.yaml); set **`origin`**; build synthetic **`tools/call`** JSON-RPC; **`MessageFilterService.processMessage`**.
+1. **Arcade routes** — Pre/post: require valid **tenant API key** Bearer; parse body per [`webhook.yaml`](./webhook.yaml); set **`origin`**; build synthetic **`tools/call`** JSON-RPC; **`MessageFilterService.processMessage`**.
 2. **Applicability** — **`applyPolicies`**: **`enabled`** + **`origin`** + **`methods`** vs **`payloadMethod`** (see §4).
 3. **Conditions / actions** — **`PolicyEngine.processMessage`** then **`applyModifications`**; outcomes mapped to Arcade hook results.
 4. **Persistence** — **`messages`** row on pre; post updates matching row by **`payloadMessageId`** / **`message.messageId`** or creates orphan **server** row if no match; **`alerts`** and **`message_actions`** as today.
@@ -156,7 +158,7 @@ Schema: **`server/appData/migrations/001_initial_arcade.sql`**. Legacy columns *
 |------|--------|
 | Single Arcade-first migration **`001_initial_arcade.sql`** | Done |
 | Messages schema: **`source`**, **`payloadToolkit`**, **`payloadToolVersion`**, no client/server/session columns | Done |
-| **`/webhooks/arcade/pre`** and **`/post`** + optional bearer | Done |
+| **`/webhooks/arcade/pre`** and **`/post`** + required tenant Bearer | Done |
 | Synthetic **`tools/call`** + **`PreHookResult` / `PostHookResult`** | Done |
 | **`applyPolicies`** + alerts + **`message_actions`** | Done |
 | **`toolNames`** + drop **`methods`** for Arcade | **Not done** (see §4, §11) |
@@ -165,6 +167,7 @@ Schema: **`server/appData/migrations/001_initial_arcade.sql`**. Legacy columns *
 
 ## 9. References (code)
 
+- [`docs/auth-and-multitenancy.md`](../auth-and-multitenancy.md) — sessions, **`tenant_api_keys`**, webhook auth
 - [`docs/arcade/webhook.yaml`](./webhook.yaml)
 - [`docs/arcade/payloads.md`](./payloads.md)
 - `server/appData/migrations/001_initial_arcade.sql`

@@ -1,5 +1,4 @@
 import { ModelFactory } from '../models';
-import { AppSettingsModel } from '../models/appSettings';
 
 export interface RetentionStats {
     messagesDeleted: number;
@@ -30,7 +29,7 @@ export class RetentionService {
      * 
      * This ensures that messages with alerts are preserved until the alert retention period expires
      */
-    async enforceRetention(): Promise<RetentionStats> {
+    async enforceRetention(tenantId: number): Promise<RetentionStats> {
         const stats: RetentionStats = {
             messagesDeleted: 0,
             alertsDeleted: 0,
@@ -40,11 +39,11 @@ export class RetentionService {
         };
 
         try {
-            const appSettings = await ModelFactory.getInstance().getAppSettingsModel();
+            const appSettings = await ModelFactory.getInstance().getAppSettingsModel(tenantId);
             const settings = await appSettings.get();
             
-            const alertModel = await ModelFactory.getInstance().getAlertModel();
-            const messageModel = await ModelFactory.getInstance().getMessageModel();
+            const alertModel = await ModelFactory.getInstance().getAlertModel(tenantId);
+            const messageModel = await ModelFactory.getInstance().getMessageModel(tenantId);
 
             // Step 1: Delete old alerts
             const alertRetentionDate = new Date();
@@ -71,7 +70,7 @@ export class RetentionService {
     /**
      * Get retention statistics without performing cleanup
      */
-    async getRetentionStats(): Promise<{
+    async getRetentionStats(tenantId: number): Promise<{
         totalMessages: number;
         totalAlerts: number;
         oldMessages: number;
@@ -79,11 +78,11 @@ export class RetentionService {
         messagesWithAlerts: number;
     }> {
         try {
-            const appSettings = await ModelFactory.getInstance().getAppSettingsModel();
+            const appSettings = await ModelFactory.getInstance().getAppSettingsModel(tenantId);
             const settings = await appSettings.get();
             
-            const alertModel = await ModelFactory.getInstance().getAlertModel();
-            const messageModel = await ModelFactory.getInstance().getMessageModel();
+            const alertModel = await ModelFactory.getInstance().getAlertModel(tenantId);
+            const messageModel = await ModelFactory.getInstance().getMessageModel(tenantId);
 
             const alertRetentionDate = new Date();
             alertRetentionDate.setDate(alertRetentionDate.getDate() - settings.alertRetentionDays);

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { JsonResponse } from "@/lib/jsonResponse";
 import { ModelFactory } from "@/lib/models";
 import { logger } from "@/lib/logging/server";
+import { getApiTenantOr401 } from "@/lib/api/apiAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,8 @@ export interface DimensionsPayload {
 
 export async function GET(request: NextRequest) {
     try {
+        const auth = await getApiTenantOr401(request);
+        if (!auth.ok) return auth.response;
         const searchParams = request.nextUrl.searchParams;
 
         const dimensions = searchParams.getAll("dimension") as Dimension[];
@@ -94,9 +97,9 @@ export async function GET(request: NextRequest) {
             endTime: searchParams.get("endTime") || undefined,
         };
 
-        const messageModel = await ModelFactory.getInstance().getMessageModel();
-        const alertModel = await ModelFactory.getInstance().getAlertModel();
-        const policyModel = await ModelFactory.getInstance().getPolicyModel();
+        const messageModel = await ModelFactory.getInstance().getMessageModel(auth.tenantId);
+        const alertModel = await ModelFactory.getInstance().getAlertModel(auth.tenantId);
+        const policyModel = await ModelFactory.getInstance().getPolicyModel(auth.tenantId);
 
         const idDimensions = dimensions.filter((dim) => dim in ID_DIMENSIONS);
         const staticDimensions = dimensions.filter((dim) => dim in STATIC_DIMENSIONS);

@@ -19,6 +19,7 @@ import fs from 'fs/promises';
 import { logger } from '@/lib/logging/server';
 import { findStaticDir } from '@/lib/utils/static';
 import { generateBase32Id } from '@/lib/utils/id';
+import { DEFAULT_TENANT_ID } from '@/lib/auth/constants';
 
 declare global {
   var modelFactoryInstance: ModelFactory | null;
@@ -31,12 +32,6 @@ if (!global.modelFactoryInstance) {
 export class ModelFactory {
     private db: DatabaseClient | null = null;
     private initialized = false;
-    private messageModel: SqliteMessageModel | null = null;
-    private policyModel: SqlitePolicyModel | null = null;
-    private alertModel: SqliteAlertModel | null = null;
-    private policyElementModel: SqlitePolicyElementModel | null = null;
-    private messageActionModel: SqliteMessageActionModel | null = null;
-    private appSettingsModel: AppSettingsModel | null = null;
 
     private constructor() {}
 
@@ -57,11 +52,6 @@ export class ModelFactory {
         try {
             const dbWasCreated = await initializeDatabase();
             this.db = await DatabaseClient.create(DB_CONFIG.getPath());
-            this.messageModel = new SqliteMessageModel(this.db);
-            this.policyModel = new SqlitePolicyModel(this.db);
-            this.alertModel = new SqliteAlertModel(this.db);
-            this.policyElementModel = new SqlitePolicyElementModel(this.db);
-            this.messageActionModel = new SqliteMessageActionModel(this.db);
             if (dbWasCreated) {
                 await this.onDatabaseCreated();
             }
@@ -73,68 +63,65 @@ export class ModelFactory {
         }
     }
 
-    public async getMessageModel(): Promise<MessageModel> {
+    public async getMessageModel(tenantId: number = DEFAULT_TENANT_ID): Promise<MessageModel> {
         if (!this.initialized) {
             await this.initialize();
         }
-        if (!this.messageModel) {
-            throw new Error('Message model not initialized');
+        if (!this.db) {
+            throw new Error('Database not initialized');
         }
-        return this.messageModel;
+        return new SqliteMessageModel(this.db, tenantId);
     }
 
-    public async getPolicyModel(): Promise<PolicyModel> {
+    public async getPolicyModel(tenantId: number = DEFAULT_TENANT_ID): Promise<PolicyModel> {
         if (!this.initialized) {
             await this.initialize();
         }
-        if (!this.policyModel) {
-            throw new Error('Policy model not initialized');
+        if (!this.db) {
+            throw new Error('Database not initialized');
         }
-        return this.policyModel;
+        return new SqlitePolicyModel(this.db, tenantId);
     }
 
-    public async getAlertModel(): Promise<AlertModel> {
+    public async getAlertModel(tenantId: number = DEFAULT_TENANT_ID): Promise<AlertModel> {
         if (!this.initialized) {
             await this.initialize();
         }
-        if (!this.alertModel) {
-            throw new Error('Alert model not initialized');
+        if (!this.db) {
+            throw new Error('Database not initialized');
         }
-        return this.alertModel;
+        return new SqliteAlertModel(this.db, tenantId);
     }
 
-    public async getPolicyElementModel(): Promise<PolicyElementModel> {
+    public async getPolicyElementModel(tenantId: number = DEFAULT_TENANT_ID): Promise<PolicyElementModel> {
         if (!this.initialized) {
             await this.initialize();
         }
-        if (!this.policyElementModel) {
-            throw new Error('Policy element model not initialized');
+        if (!this.db) {
+            throw new Error('Database not initialized');
         }
-        return this.policyElementModel;
+        return new SqlitePolicyElementModel(this.db, tenantId);
     }
 
-    public async getMessageActionModel(): Promise<MessageActionModel> {
+    public async getMessageActionModel(tenantId: number = DEFAULT_TENANT_ID): Promise<MessageActionModel> {
         if (!this.initialized) {
             await this.initialize();
         }
-        if (!this.messageActionModel) {
-            throw new Error('Message action model not initialized');
+        if (!this.db) {
+            throw new Error('Database not initialized');
         }
-        return this.messageActionModel;
+        return new SqliteMessageActionModel(this.db, tenantId);
     }
 
-    public async getAppSettingsModel(): Promise<AppSettingsModel> {
+    public async getAppSettingsModel(tenantId: number = DEFAULT_TENANT_ID): Promise<AppSettingsModel> {
         if (!this.initialized) {
             await this.initialize();
         }
-        if (!this.appSettingsModel) {
-            const settings = new SettingsModel(this.db!);
-            this.appSettingsModel = new SqliteAppSettingsModel(settings);
+        if (!this.db) {
+            throw new Error('Database not initialized');
         }
-        if (!this.appSettingsModel) {
-            throw new Error('App settings model not initialized');
-        }
-        return this.appSettingsModel;
+        const settings = new SettingsModel(this.db, tenantId);
+        return new SqliteAppSettingsModel(settings);
     }
 
     public async analyze(): Promise<void> {

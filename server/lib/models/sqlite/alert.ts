@@ -15,10 +15,12 @@ function appendMessageFilters(conditions: string[], params: SqliteValue[], filte
 
 export class SqliteAlertModel extends AlertModel {
     private db: DatabaseClient;
+    private readonly tenantId: number;
 
-    constructor(db: DatabaseClient) {
+    constructor(db: DatabaseClient, tenantId: number) {
         super();
         this.db = db;
+        this.tenantId = tenantId;
     }
 
     async findById(alertId: number): Promise<AlertReadData | null> {
@@ -28,8 +30,8 @@ export class SqliteAlertModel extends AlertModel {
              FROM alerts a
              JOIN policies p ON a.policyId = p.policyId
              JOIN messages m ON a.messageId = m.messageId
-             WHERE a.alertId = ?`,
-            [alertId]
+             WHERE a.alertId = ? AND a.tenantId = ?`,
+            [alertId, this.tenantId]
         );
         if (!result.rows[0]) return null;
 
@@ -42,8 +44,8 @@ export class SqliteAlertModel extends AlertModel {
     }
 
     async list(filter: AlertFilter, pagination: AlertPagination): Promise<AlertListResult> {
-        const conditions: string[] = [];
-        const params: SqliteValue[] = [];
+        const conditions: string[] = ["a.tenantId = ?"];
+        const params: SqliteValue[] = [this.tenantId];
 
         if (filter.messageId) {
             conditions.push("a.messageId = ?");
@@ -125,12 +127,13 @@ export class SqliteAlertModel extends AlertModel {
         };
     }
 
-    async create(data: Omit<AlertData, "alertId" | "createdAt" | "seenAt">): Promise<AlertReadData> {
+    async create(data: Omit<AlertData, "alertId" | "createdAt" | "seenAt" | "tenantId">): Promise<AlertReadData> {
         const result = await this.db.query<AlertData>(
-            `INSERT INTO alerts (messageId, policyId, origin, condition, findings, timestamp)
-             VALUES (?, ?, ?, ?, ?, ?)
+            `INSERT INTO alerts (tenantId, messageId, policyId, origin, condition, findings, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
              RETURNING *`,
             [
+                this.tenantId,
                 data.messageId,
                 data.policyId,
                 data.origin,
@@ -144,18 +147,24 @@ export class SqliteAlertModel extends AlertModel {
     }
 
     async markAsSeen(alertId: number): Promise<AlertReadData> {
-        await this.db.execute("UPDATE alerts SET seenAt = CURRENT_TIMESTAMP WHERE alertId = ?", [alertId]);
+        await this.db.execute("UPDATE alerts SET seenAt = CURRENT_TIMESTAMP WHERE alertId = ? AND tenantId = ?", [
+            alertId,
+            this.tenantId,
+        ]);
         return this.findById(alertId) as Promise<AlertReadData>;
     }
 
     async markAsUnseen(alertId: number): Promise<AlertReadData> {
-        await this.db.execute("UPDATE alerts SET seenAt = NULL WHERE alertId = ?", [alertId]);
+        await this.db.execute("UPDATE alerts SET seenAt = NULL WHERE alertId = ? AND tenantId = ?", [
+            alertId,
+            this.tenantId,
+        ]);
         return this.findById(alertId) as Promise<AlertReadData>;
     }
 
     async markAll(filter: AlertFilter & { seen: boolean }): Promise<void> {
-        const conditions: string[] = [];
-        const params: SqliteValue[] = [];
+        const conditions: string[] = ["a.tenantId = ?"];
+        const params: SqliteValue[] = [this.tenantId];
 
         if (filter.messageId) {
             conditions.push("a.messageId = ?");
@@ -208,8 +217,8 @@ export class SqliteAlertModel extends AlertModel {
         source?: string;
         payloadToolkit?: string;
     }): Promise<Array<{ timestamp: string; counts: Record<string, number> }>> {
-        const conditions: string[] = [];
-        const queryParams: SqliteValue[] = [];
+        const conditions: string[] = ["a.tenantId = ?"];
+        const queryParams: SqliteValue[] = [this.tenantId];
 
         if (params.policyId) {
             conditions.push("a.policyId = ?");
@@ -334,8 +343,8 @@ export class SqliteAlertModel extends AlertModel {
         source?: string;
         payloadToolkit?: string;
     }): Promise<Array<{ value: string; count: number }>> {
-        const conditions: string[] = [];
-        const queryParams: SqliteValue[] = [];
+        const conditions: string[] = ["a.tenantId = ?"];
+        const queryParams: SqliteValue[] = [this.tenantId];
 
         if (params.policyId) {
             conditions.push("a.policyId = ?");
@@ -369,7 +378,7 @@ export class SqliteAlertModel extends AlertModel {
             queryParams.push(params.payloadToolkit);
         }
 
-        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+        const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
         let dimensionColumn: string;
         switch (params.dimension) {
@@ -425,8 +434,8 @@ export class SqliteAlertModel extends AlertModel {
         source?: string;
         payloadToolkit?: string;
     }): Promise<Record<string, string[]>> {
-        const conditions: string[] = [];
-        const queryParams: SqliteValue[] = [];
+        const conditions: string[] = ["a.tenantId = ?"];
+        const queryParams: SqliteValue[] = [this.tenantId];
         const result: Record<string, string[]> = {};
 
         if (params.policyId) {
@@ -457,7 +466,7 @@ export class SqliteAlertModel extends AlertModel {
             queryParams.push(params.payloadToolkit);
         }
 
-        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+        const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
         for (const dimension of params.dimensions) {
             let dimensionColumn: string;
@@ -510,10 +519,13 @@ export class SqliteAlertModel extends AlertModel {
 
     async deleteOldAlerts(beforeDate: string): Promise<{ deletedCount: number }> {
         const countResult = await this.db.query<{ deletedCount: number }>(
-            "SELECT COUNT(*) as deletedCount FROM alerts WHERE createdAt < ?",
-            [beforeDate]
+            "SELECT COUNT(*) as deletedCount FROM alerts WHERE tenantId = ? AND createdAt < ?",
+            [this.tenantId, beforeDate]
         );
-        await this.db.execute("DELETE FROM alerts WHERE createdAt < ?", [beforeDate]);
+        await this.db.execute("DELETE FROM alerts WHERE tenantId = ? AND createdAt < ?", [
+            this.tenantId,
+            beforeDate,
+        ]);
         return { deletedCount: countResult.rows[0].deletedCount };
     }
 }

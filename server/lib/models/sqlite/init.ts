@@ -7,6 +7,7 @@ import { DB_CONFIG } from './config';
 import { getAppDataPath } from '@/utils/paths';
 import { logger } from '@/lib/logging/server';
 import { findStaticDir } from '@/lib/utils/static';
+import { ensureBootstrapData } from '@/lib/auth/bootstrap';
 
 interface Migration {
   version: string;
@@ -111,40 +112,33 @@ export async function initializeDatabase(): Promise<boolean> {
     
     if (pendingMigrations.length === 0) {
       logger.debug('Database is up to date, no migrations needed');
-      return isNewDatabase;
+    } else {
+      logger.debug(`Found ${pendingMigrations.length} pending migrations`);
+      const db = await getDb();
+      for (const migration of pendingMigrations) {
+        logger.debug(`Running migration ${migration.version}: ${migration.name}`);
+        logger.debug('Migration SQL:', migration.sql);
+        try {
+          await db.transaction(async () => {
+            logger.debug('Executing migration SQL...');
+            await db.exec(migration.sql);
+            logger.debug('Recording migration in schema_migrations...');
+            await db.execute('INSERT INTO schema_migrations (version, name) VALUES (?, ?)', [
+              migration.version,
+              migration.name,
+            ]);
+          });
+          logger.debug(`Successfully applied migration ${migration.version}`);
+        } catch (error) {
+          logger.error(`Failed to apply migration ${migration.version}:`, error);
+          throw error;
+        }
+      }
+      logger.debug('Running ANALYZE to optimize query performance');
+      await db.analyze();
     }
 
-    logger.debug(`Found ${pendingMigrations.length} pending migrations`);
-    
-    // Run each pending migration in a transaction
-    const db = await getDb();
-    for (const migration of pendingMigrations) {
-      logger.debug(`Running migration ${migration.version}: ${migration.name}`);
-      logger.debug('Migration SQL:', migration.sql);
-      
-      try {
-        await db.transaction(async () => {
-          logger.debug('Executing migration SQL...');
-          await db.exec(migration.sql);
-          
-          // Record the migration
-          logger.debug('Recording migration in schema_migrations...');
-          await db.execute(
-            'INSERT INTO schema_migrations (version, name) VALUES (?, ?)',
-            [migration.version, migration.name]
-          );
-        });
-        
-        logger.debug(`Successfully applied migration ${migration.version}`);
-      } catch (error) {
-        logger.error(`Failed to apply migration ${migration.version}:`, error);
-        throw error;
-      }
-    }
-    
-    // Run ANALYZE to optimize query performance
-    logger.debug('Running ANALYZE to optimize query performance');
-    await db.analyze();
+    await ensureBootstrapData();
 
     logger.debug('Database initialization completed successfully');
     return isNewDatabase;

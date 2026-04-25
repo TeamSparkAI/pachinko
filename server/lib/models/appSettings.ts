@@ -16,7 +16,6 @@ export abstract class AppSettingsModel {
 
     protected static readonly CATEGORY = 'app';
     protected static readonly DEFAULT_CONFIG: AppSettingsData = {
-        filterApiBearerToken: '',
         messageRetentionDays: 90,
         alertRetentionDays: 90,
         externalBaseUrl: '',
@@ -50,12 +49,9 @@ export abstract class AppSettingsModel {
         if (typeof data.messageRetentionDays !== 'number' || typeof data.alertRetentionDays !== 'number') {
             return null;
         }
-        const filterApiBearerToken =
-            typeof data.filterApiBearerToken === 'string' ? data.filterApiBearerToken : '';
         const externalBaseUrl =
             typeof data.externalBaseUrl === 'string' ? data.externalBaseUrl : '';
         return {
-            filterApiBearerToken,
             messageRetentionDays: data.messageRetentionDays,
             alertRetentionDays: data.alertRetentionDays,
             externalBaseUrl,
@@ -94,9 +90,6 @@ export abstract class AppSettingsModel {
         if (!this.isValidAppSettingsData(config)) {
             throw new Error('Invalid app settings configuration shape');
         }
-        if (typeof config.filterApiBearerToken !== 'string') {
-            throw new Error('filterApiBearerToken must be a string');
-        }
         if (typeof config.messageRetentionDays !== 'number' || config.messageRetentionDays < 1) {
             throw new Error('messageRetentionDays must be a positive number');
         }
@@ -125,7 +118,6 @@ export abstract class AppSettingsModel {
         if (!config || typeof config !== 'object') return false;
         const data = config as Record<string, unknown>;
         return (
-            typeof data.filterApiBearerToken === 'string' &&
             typeof data.messageRetentionDays === 'number' &&
             typeof data.alertRetentionDays === 'number' &&
             typeof data.externalBaseUrl === 'string'

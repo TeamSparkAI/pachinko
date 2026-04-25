@@ -164,7 +164,10 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      description: Simple token-based auth via Authorization header. mTLS is also supported at the transport layer.
+      description: |
+        Authorization header bearer token. For Pachinko policy hooks this must be a tenant API key:
+        `{keyLookupId}.{secret}` (created in Pachinko Settings → API keys). Arcade’s spec still names this
+        scheme bearerAuth. mTLS may also be supported at the transport layer.
 
   schemas:
     ToolInfo:

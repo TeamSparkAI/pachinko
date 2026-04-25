@@ -3,7 +3,7 @@ import { AlertData, AlertFilter, AlertListResult, AlertPagination, AlertReadData
 export abstract class AlertModel {
     abstract findById(alertId: number): Promise<AlertReadData | null>;
     abstract list(filter: AlertFilter, pagination: AlertPagination): Promise<AlertListResult>;
-    abstract create(data: Omit<AlertData, "alertId" | "createdAt" | "seenAt">): Promise<AlertReadData>;
+    abstract create(data: Omit<AlertData, "alertId" | "createdAt" | "seenAt" | "tenantId">): Promise<AlertReadData>;
     abstract markAsSeen(alertId: number): Promise<AlertReadData>;
     abstract markAsUnseen(alertId: number): Promise<AlertReadData>;
     abstract markAll(filter: AlertFilter & { seen: boolean }): Promise<void>;

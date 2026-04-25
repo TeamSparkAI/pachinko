@@ -2,12 +2,15 @@ import { NextRequest } from "next/server";
 import { JsonResponse } from "@/lib/jsonResponse";
 import { ModelFactory } from "@/lib/models";
 import { logger } from "@/lib/logging/server";
+import { getApiTenantOr401 } from "@/lib/api/apiAuth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
     try {
-        const alertModel = await ModelFactory.getInstance().getAlertModel();
+        const auth = await getApiTenantOr401(request);
+        if (!auth.ok) return auth.response;
+        const alertModel = await ModelFactory.getInstance().getAlertModel(auth.tenantId);
         const url = new URL(request.url);
         const sort = (url.searchParams.get("sort") || "desc") as "asc" | "desc";
         const limit = 20;

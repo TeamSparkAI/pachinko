@@ -53,7 +53,7 @@ export default function PolicyPage({ params }: { params: { policyId: string } })
     }
   };
 
-  const handleSavePolicy = async (updatedPolicy: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt'>) => {
+  const handleSavePolicy = async (updatedPolicy: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt' | 'tenantId'>) => {
     try {
       const response = await fetch(`/api/v1/policies/${params.policyId}`, {
         method: 'PUT',

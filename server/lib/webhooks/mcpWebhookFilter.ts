@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { timingSafeEqual } from 'crypto';
 import { MessageFilterService } from '@/lib/services/messageFilter';
+import { resolveRequestContext, isAuthorizedTenant } from '@/lib/auth/resolveRequestContext';
 import { JsonRpcValidationError, validateJsonRpcMessage } from '@/lib/jsonrpc';
 import { JsonResponse } from '@/lib/jsonResponse';
 import { logger } from '@/lib/logging/server';
-import { ModelFactory } from '@/lib/models';
 import { MessageFilterContext } from '@/lib/types/messageFilterContext';
 import {
   isPlainJsonObject,
@@ -64,16 +63,6 @@ function summarizeWebhookBody(body: unknown, rawByteLength: number): string {
   });
 }
 
-function bearerMatchesConfiguredSecret(authHeader: string | null, secret: string): boolean {
-  const expected = `Bearer ${secret}`;
-  const a = Buffer.from(authHeader ?? '', 'utf8');
-  const b = Buffer.from(expected, 'utf8');
-  if (a.length !== b.length) {
-    return false;
-  }
-  return timingSafeEqual(a, b);
-}
-
 function looksLikeArcadePreOnlyOnPostUrl(body: Record<string, unknown>): boolean {
   return (
     'inputs' in body &&
@@ -89,7 +78,7 @@ function looksLikeArcadePreOnlyOnPostUrl(body: Record<string, unknown>): boolean
  *
  * **Body:** Exactly the Arcade Engine JSON (`docs/arcade/webhook.yaml`). No Pachinko-only fields.
  *
- * **Optional API secret:** When `filterApiBearerToken` is set, require `Authorization: Bearer <token>`.
+ * **Auth:** `Authorization: Bearer {keyLookupId}.{secret}` for a `tenant_api_keys` row (Bearer only; session cookies are not accepted).
  *
  * **Response:** Native Arcade `PreHookResult` / `PostHookResult` JSON (HTTP 200).
  */
@@ -128,17 +117,16 @@ export async function handleArcadeFilterWebhook(
 
     console.log('[Arcade webhook]', hookLabel, 'parsed summary', summarizeWebhookBody(body, rawText.length));
 
-    const appSettingsModel = await ModelFactory.getInstance().getAppSettingsModel();
-    const appSettings = await appSettingsModel.get();
-    const configuredSecret = appSettings.filterApiBearerToken?.trim() ?? '';
-
-    const authHeader = request.headers.get('authorization');
-
-    if (configuredSecret) {
-      if (!bearerMatchesConfiguredSecret(authHeader, configuredSecret)) {
-        return jsonErrorResponse(hookLabel, 401, 'Unauthorized', '(bearer does not match filterApiBearerToken)');
-      }
+    const ctx = await resolveRequestContext(request);
+    if (!isAuthorizedTenant(ctx) || ctx.authMode !== 'bearer') {
+      return jsonErrorResponse(
+        hookLabel,
+        401,
+        'Unauthorized',
+        '(require Authorization: Bearer keyLookupId.secret for tenant API key)'
+      );
     }
+    const tenantId = ctx.tenantId;
 
     if (direction === 'client') {
       if (isArcadeEnginePrePayload(body)) {
@@ -155,7 +143,12 @@ export async function handleArcadeFilterWebhook(
         );
         const rpc = arcadePreToJsonRpcRequest(body);
         const validatedMessage = validateJsonRpcMessage('client', rpc);
-        const result = await MessageFilterService.processMessage(filterPayload, validatedMessage);
+        const result = await MessageFilterService.processMessage(
+          filterPayload,
+          validatedMessage,
+          undefined,
+          tenantId
+        );
         if (!result.success) {
           return jsonErrorResponse(
             hookLabel,
@@ -214,7 +207,12 @@ export async function handleArcadeFilterWebhook(
           rpc = arcadePostSuccessToJsonRpc(body.execution_id, shape);
         }
         const validatedMessage = validateJsonRpcMessage('server', rpc);
-        const result = await MessageFilterService.processMessage(filterPayload, validatedMessage);
+        const result = await MessageFilterService.processMessage(
+          filterPayload,
+          validatedMessage,
+          undefined,
+          tenantId
+        );
         if (!result.success) {
           return jsonErrorResponse(
             hookLabel,

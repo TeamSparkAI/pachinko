@@ -2,6 +2,7 @@ import { DatabaseClient } from './database';
 
 interface SettingsRow {
     settingsId: number;
+    tenantId: number;
     category: string;
     config: string;  // Stored as JSON string in DB
     description?: string;
@@ -11,6 +12,7 @@ interface SettingsRow {
 
 export interface SettingsData {
     settingsId: number;
+    tenantId: number;
     category: string;
     config: Record<string, any>;
     description?: string;
@@ -19,12 +21,15 @@ export interface SettingsData {
 }
 
 export class SettingsModel {
-    constructor(private db: DatabaseClient) {}
+    constructor(
+        private db: DatabaseClient,
+        readonly tenantId: number
+    ) {}
 
     async findByCategory(category: string): Promise<SettingsData | null> {
         const result = await this.db.query<SettingsRow>(
-            'SELECT * FROM settings WHERE category = ?',
-            [category]
+            'SELECT * FROM settings WHERE category = ? AND tenantId = ?',
+            [category, this.tenantId]
         );
         if (!result.rows[0]) {
             return null;
@@ -36,15 +41,11 @@ export class SettingsModel {
         };
     }
 
-    async create(data: Omit<SettingsData, 'settingsId' | 'createdAt' | 'updatedAt'>): Promise<SettingsData> {
+    async create(data: Omit<SettingsData, 'settingsId' | 'createdAt' | 'updatedAt' | 'tenantId'>): Promise<SettingsData> {
         await this.db.execute(
-            `INSERT INTO settings (category, config, description)
-             VALUES (?, ?, ?)`,
-            [
-                data.category,
-                JSON.stringify(data.config),
-                data.description || null
-            ]
+            `INSERT INTO settings (tenantId, category, config, description)
+             VALUES (?, ?, ?, ?)`,
+            [this.tenantId, data.category, JSON.stringify(data.config), data.description || null]
         );
 
         const result = await this.db.query<{ settingsId: number }>('SELECT last_insert_rowid() as settingsId');
@@ -74,19 +75,22 @@ export class SettingsModel {
         }
 
         await this.db.execute(
-            `UPDATE settings SET ${updates.join(', ')} WHERE category = ?`,
-            [...params, category]
+            `UPDATE settings SET ${updates.join(', ')} WHERE category = ? AND tenantId = ?`,
+            [...params, category, this.tenantId]
         );
 
         return this.findByCategory(category) as Promise<SettingsData>;
     }
 
     async delete(category: string): Promise<void> {
-        await this.db.execute('DELETE FROM settings WHERE category = ?', [category]);
+        await this.db.execute('DELETE FROM settings WHERE category = ? AND tenantId = ?', [category, this.tenantId]);
     }
 
     async list(): Promise<SettingsData[]> {
-        const result = await this.db.query<SettingsData>('SELECT * FROM settings ORDER BY category');
+        const result = await this.db.query<SettingsData>(
+            'SELECT * FROM settings WHERE tenantId = ? ORDER BY category',
+            [this.tenantId]
+        );
         return result.rows;
     }
 } 

@@ -6,6 +6,12 @@ info:
     HTTP API for policy configuration, message and alert review, analytics,
     Arcade Engine webhooks, retention, and application settings.
 
+    **Authentication:** Most routes accept either (1) the **`pachinko_session`** httpOnly cookie
+    after `POST /api/auth/login` in the same browser origin, or (2) **`Authorization: Bearer`**
+    with a tenant API key (`keyLookupId.secret` from Settings → API keys). Do not paste the
+    session JWT into a generic “Bearer JWT” field; use **Authorize → session cookie** or the
+    **tenant API key** scheme. Webhook routes require the tenant API key only.
+
 servers:
   - url: http://localhost:3000/api/v1
     description: API base (Next.js app)
@@ -29,6 +35,10 @@ tags:
     description: Data retention maintenance
   - name: MessageActions
     description: Recommended actions for a message
+
+security:
+  - sessionCookie: []
+  - tenantApiKeyBearer: []
 
 components:
   schemas:
@@ -911,7 +921,8 @@ components:
       type: object
       description: >
         Legacy fields requireClientToken and strictServerAccess are removed from the product.
-        Arcade Engine policy webhooks may optionally require a shared API bearer (app setting filterApiBearerToken); see /webhooks/arcade/pre and /webhooks/arcade/post.
+        Arcade Engine policy webhooks require `Authorization: Bearer` with a tenant API key
+        (`keyLookupId.secret`); see /webhooks/arcade/pre and /webhooks/arcade/post.
       additionalProperties: true
 
     ComplianceData:
@@ -939,10 +950,21 @@ components:
         # etc.
 
   securitySchemes:
-    bearerAuth:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: pachinko_session
+      description: |
+        Session after logging in via the app (`POST /api/auth/login`). In Swagger UI, paste the
+        cookie **value** only (from DevTools → Application → Cookies for this origin). Requests
+        then send `Cookie: pachinko_session=<value>`. This is not the tenant API key.
+    tenantApiKeyBearer:
       type: http
       scheme: bearer
-      bearerFormat: JWT
+      bearerFormat: keyLookupId.secret
+      description: |
+        `Authorization: Bearer` with a tenant API key. Format: `{keyLookupId}.{secret}` (split on the first dot).
+        Issued in Settings → API keys (`tenant_api_keys`). Not the session cookie value and not a global env secret.
 
   responses:
     BadRequest:
@@ -1089,10 +1111,12 @@ paths:
   /webhooks/arcade/pre:
     post:
       tags: [Webhooks]
+      security:
+        - tenantApiKeyBearer: []
       summary: Arcade Engine pre-hook
       description: |
         Request/response shapes match Arcade (see docs/arcade/webhook.yaml).
-        Optional Authorization Bearer token when app setting filterApiBearerToken is set.
+        Requires `Authorization: Bearer` with a valid tenant API key (`keyLookupId.secret`).
       requestBody:
         required: true
         content:
@@ -1116,8 +1140,10 @@ paths:
   /webhooks/arcade/post:
     post:
       tags: [Webhooks]
+      security:
+        - tenantApiKeyBearer: []
       summary: Arcade Engine post-hook
-      description: Same optional bearer as pre-hook; native Arcade response body on success.
+      description: Same auth as pre-hook; native Arcade response body on success.
       requestBody:
         required: true
         content:
@@ -1527,7 +1553,6 @@ paths:
             schema:
               type: object
               properties:
-                filterApiBearerToken: { type: string }
                 messageRetentionDays: { type: integer, minimum: 1 }
                 alertRetentionDays: { type: integer, minimum: 1 }
                 externalBaseUrl: { type: string }
@@ -1546,6 +1571,9 @@ paths:
     get:
       tags: [Settings]
       summary: Get UI client settings
+      description: |
+        Requires a valid session cookie or `Authorization: Bearer` with a tenant API key.
+        Unauthenticated requests receive 401 (caller may fall back to defaults).
       responses:
         "200":
           content:
@@ -1557,6 +1585,8 @@ paths:
                     $ref: "#/components/schemas/Meta"
                   data:
                     $ref: "#/components/schemas/ClientSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/ServerError"
 

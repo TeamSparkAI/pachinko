@@ -4,6 +4,7 @@ import { Finding } from "@/lib/policy-engine/types/core";
 
 export interface AlertData {
     alertId: number;
+    tenantId: number;
     messageId: number;
     policyId: number;
     origin: MessageOrigin;

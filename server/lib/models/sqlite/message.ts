@@ -12,10 +12,12 @@ import {
 
 export class SqliteMessageModel extends MessageModel {
     private db: DatabaseClient;
+    private readonly tenantId: number;
 
-    constructor(db: DatabaseClient) {
+    constructor(db: DatabaseClient, tenantId: number) {
         super();
         this.db = db;
+        this.tenantId = tenantId;
     }
 
     async findById(messageId: number): Promise<MessageData | null> {
@@ -24,8 +26,8 @@ export class SqliteMessageModel extends MessageModel {
                     CASE WHEN a.alertId IS NOT NULL THEN 1 ELSE 0 END as hasAlerts
              FROM messages m
              LEFT JOIN alerts a ON m.messageId = a.messageId
-             WHERE m.messageId = ?`,
-            [messageId]
+             WHERE m.messageId = ? AND m.tenantId = ?`,
+            [messageId, this.tenantId]
         );
         if (!result.rows[0]) return null;
 
@@ -42,8 +44,8 @@ export class SqliteMessageModel extends MessageModel {
     }
 
     async list(filter: MessageFilter, pagination: MessagePagination): Promise<MessageListResult> {
-        const conditions: string[] = [];
-        const params: SqliteValue[] = [];
+        const conditions: string[] = ['m.tenantId = ?'];
+        const params: SqliteValue[] = [this.tenantId];
 
         if (filter.origin) {
             conditions.push('m.origin = ?');
@@ -160,10 +162,11 @@ export class SqliteMessageModel extends MessageModel {
     async create(data: Omit<MessageData, 'messageId' | 'createdAt'>): Promise<MessageData> {
         await this.db.execute(
             `INSERT INTO messages (
-                timestamp, origin, userId, source, payloadToolkit, payloadToolVersion,
+                tenantId, timestamp, origin, userId, source, payloadToolkit, payloadToolVersion,
                 payloadMessageId, payloadMethod, payloadToolName, payloadParams, payloadResult, payloadError
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
+                this.tenantId,
                 data.timestamp,
                 data.origin,
                 data.userId,
@@ -208,19 +211,25 @@ export class SqliteMessageModel extends MessageModel {
             return this.findById(messageId) as Promise<MessageData>;
         }
 
-        await this.db.execute(`UPDATE messages SET ${updates.join(', ')} WHERE messageId = ?`, [...params, messageId]);
+        await this.db.execute(
+            `UPDATE messages SET ${updates.join(', ')} WHERE messageId = ? AND tenantId = ?`,
+            [...params, messageId, this.tenantId]
+        );
 
         return this.findById(messageId) as Promise<MessageData>;
     }
 
     async delete(messageId: number): Promise<boolean> {
-        const result = await this.db.execute('DELETE FROM messages WHERE messageId = ?', [messageId]);
+        const result = await this.db.execute('DELETE FROM messages WHERE messageId = ? AND tenantId = ?', [
+            messageId,
+            this.tenantId,
+        ]);
         return result.changes > 0;
     }
 
     private buildAnalyticsWhere(params: MessageAnalyticsFilter): { clause: string; queryParams: SqliteValue[] } {
-        const conditions: string[] = [];
-        const queryParams: SqliteValue[] = [];
+        const conditions: string[] = ['m.tenantId = ?'];
+        const queryParams: SqliteValue[] = [this.tenantId];
 
         if (params.userId) {
             conditions.push('m.userId = ?');
@@ -395,27 +404,27 @@ export class SqliteMessageModel extends MessageModel {
         const preservedCountResult = await this.db.query<{ preservedCount: number }>(
             `SELECT COUNT(DISTINCT m.messageId) as preservedCount
              FROM messages m
-             WHERE m.createdAt < ? AND EXISTS (
+             WHERE m.tenantId = ? AND m.createdAt < ? AND EXISTS (
                  SELECT 1 FROM alerts a WHERE a.messageId = m.messageId
              )`,
-            [beforeDate]
+            [this.tenantId, beforeDate]
         );
 
         const countResult = await this.db.query<{ deletedCount: number }>(
             `SELECT COUNT(*) as deletedCount
              FROM messages m
-             WHERE m.createdAt < ? AND NOT EXISTS (
+             WHERE m.tenantId = ? AND m.createdAt < ? AND NOT EXISTS (
                  SELECT 1 FROM alerts a WHERE a.messageId = m.messageId
              )`,
-            [beforeDate]
+            [this.tenantId, beforeDate]
         );
 
         await this.db.execute(
             `DELETE FROM messages
-             WHERE createdAt < ? AND NOT EXISTS (
+             WHERE tenantId = ? AND createdAt < ? AND NOT EXISTS (
                  SELECT 1 FROM alerts a WHERE a.messageId = messages.messageId
              )`,
-            [beforeDate]
+            [this.tenantId, beforeDate]
         );
 
         return {
@@ -428,10 +437,10 @@ export class SqliteMessageModel extends MessageModel {
         const result = await this.db.query<{ count: number }>(
             `SELECT COUNT(DISTINCT m.messageId) as count
              FROM messages m
-             WHERE m.createdAt < ? AND EXISTS (
+             WHERE m.tenantId = ? AND m.createdAt < ? AND EXISTS (
                  SELECT 1 FROM alerts a WHERE a.messageId = m.messageId
              )`,
-            [beforeDate]
+            [this.tenantId, beforeDate]
         );
 
         return result.rows[0].count;

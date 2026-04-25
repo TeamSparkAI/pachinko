@@ -18,6 +18,7 @@ export interface PolicyAction {
 
 export interface PolicyData {
     policyId: number;
+    tenantId: number;
     name: string;
     description?: string;
     severity: number;

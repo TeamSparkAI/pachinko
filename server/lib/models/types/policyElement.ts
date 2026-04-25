@@ -2,6 +2,7 @@ export type PolicyElementType = 'condition' | 'action';
 
 export interface PolicyElementData {
     configId: number;
+    tenantId: number;
     className: string;
     elementType: PolicyElementType;
     label?: string; // Short label used to distinguish different configurations of the same element type

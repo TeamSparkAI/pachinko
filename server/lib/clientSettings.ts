@@ -57,7 +57,7 @@ class ClientSettingsManager {
         return;
       }
 
-      const response = await fetch('/api/v1/clientSettings');
+      const response = await fetch('/api/v1/clientSettings', { credentials: 'include' });
       if (response.ok) {
         const jsonResponse = await response.json();
         const typedResponse = new JsonResponseFetch<ClientSettings>(jsonResponse, 'data');

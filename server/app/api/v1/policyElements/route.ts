@@ -5,11 +5,14 @@ import { logger } from '@/lib/logging/server';
 import { PolicyElementType, PolicyElementFilter } from '@/lib/models/types/policyElement';
 import { ConditionRegistry } from '@/lib/policy-engine/conditions/registry/ConditionRegistry';
 import { ActionRegistry } from '@/lib/policy-engine/actions/registry/ActionRegistry';
+import { getApiTenantOr401 } from '@/lib/api/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
     try {
+        const auth = await getApiTenantOr401(request);
+        if (!auth.ok) return auth.response;
         const { searchParams } = new URL(request.url);
         const elementType = searchParams.get('elementType') as PolicyElementType | null;
         const enabled = searchParams.get('enabled');
@@ -18,7 +21,7 @@ export async function GET(request: NextRequest) {
         if (elementType) filter.elementType = elementType;
         if (enabled !== null) filter.enabled = enabled === 'true';
         
-        const policyElementModel = await ModelFactory.getInstance().getPolicyElementModel();
+        const policyElementModel = await ModelFactory.getInstance().getPolicyElementModel(auth.tenantId);
         const elements = await policyElementModel.list(filter);
         
         // Populate metadata from element classes
@@ -46,8 +49,10 @@ export async function GET(request: NextRequest) {
     }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
+        const auth = await getApiTenantOr401(request);
+        if (!auth.ok) return auth.response;
         const body = await request.json();
         const { className, elementType, config, enabled } = body;
 
@@ -80,7 +85,7 @@ export async function POST(request: Request) {
             }
         }
 
-        const policyElementModel = await ModelFactory.getInstance().getPolicyElementModel();
+        const policyElementModel = await ModelFactory.getInstance().getPolicyElementModel(auth.tenantId);
         const element = await policyElementModel.create({
             className,
             elementType,

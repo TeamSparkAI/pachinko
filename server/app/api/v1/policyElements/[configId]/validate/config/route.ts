@@ -4,6 +4,7 @@ import { JsonResponse } from '@/lib/jsonResponse';
 import { logger } from '@/lib/logging/server';
 import { ConditionRegistry } from '@/lib/policy-engine/conditions/registry/ConditionRegistry';
 import { ActionRegistry } from '@/lib/policy-engine/actions/registry/ActionRegistry';
+import { getApiTenantOr401 } from '@/lib/api/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,9 @@ export async function POST(
     { params }: { params: { configId: string } }
 ) {
     try {
-        const configId = parseInt(params.configId);
+        const auth = await getApiTenantOr401(request);
+        if (!auth.ok) return auth.response;
+        const configId = parseInt(params.configId, 10);
         if (isNaN(configId)) {
             return JsonResponse.errorResponse(400, 'Invalid configId');
         }
@@ -20,8 +23,7 @@ export async function POST(
         const body = await request.json();
         const { config } = body;
 
-        // Get the policy element
-        const policyElementModel = await ModelFactory.getInstance().getPolicyElementModel();
+        const policyElementModel = await ModelFactory.getInstance().getPolicyElementModel(auth.tenantId);
         const element = await policyElementModel.findById(configId);
         
         if (!element) {

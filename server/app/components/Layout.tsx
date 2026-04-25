@@ -30,6 +30,10 @@ export default function Layout({ children }: LayoutProps) {
   const { headerAction, headerTitle } = useLayout();
   const { unseenAlerts } = useAlerts();
 
+  if (pathname === '/login' || pathname?.startsWith('/login/')) {
+    return <>{children}</>;
+  }
+
   const isActive = (path: string) => {
     if (path === '/') {
       return pathname === '/' || pathname === '/dashboard';
@@ -273,6 +277,49 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           ))}
         </nav>
+
+        <div className="border-t border-gray-200 py-2">
+          <Link
+            href="/account/password"
+            className={`flex items-center px-4 py-2 text-base ${
+              isActive('/account/password')
+                ? 'bg-blue-50 text-blue-600'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            }`}
+          >
+            <span className="mr-3 flex-shrink-0">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+            </span>
+            <span>Change password</span>
+          </Link>
+          <button
+            type="button"
+            className="flex items-center w-full px-4 py-2 text-base text-left text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-0 bg-transparent cursor-pointer font-sans"
+            onClick={async () => {
+              await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+              window.location.href = '/login';
+            }}
+          >
+            <span className="mr-3 flex-shrink-0">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                />
+              </svg>
+            </span>
+            <span>Log out</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}

@@ -7,6 +7,7 @@ import { AlertReadData } from '@/lib/models/types/alert';
 import { MessageActionData } from '@/lib/models/types/messageAction';
 import { logger } from '@/lib/logging/server';
 import { PolicyEngine } from '../policy-engine/core';
+import { DEFAULT_TENANT_ID } from '@/lib/auth/constants';
 
 export interface MessageFilterResult {
     success: boolean;
@@ -67,8 +68,12 @@ function getStringFieldValues(obj: unknown, path: string = ''): StringFieldValue
     return results;
 }
 
-export async function applyPolicies(messageData: MessageData, message: JsonRpcMessageWrapper): Promise<JsonRpcMessageWrapper> {
-    const policyModel = await ModelFactory.getInstance().getPolicyModel();
+export async function applyPolicies(
+    messageData: MessageData,
+    message: JsonRpcMessageWrapper,
+    tenantId: number = DEFAULT_TENANT_ID
+): Promise<JsonRpcMessageWrapper> {
+    const policyModel = await ModelFactory.getInstance().getPolicyModel(tenantId);
     const policies = await policyModel.list();
 
     const applicablePolicies = policies.filter((policy) => {
@@ -87,7 +92,7 @@ export async function applyPolicies(messageData: MessageData, message: JsonRpcMe
     const result = await PolicyEngine.processMessage(messageData, message, applicablePolicies);
 
     const alertMap = new Map<string, AlertReadData>();
-    const alertModel = await ModelFactory.getInstance().getAlertModel();
+    const alertModel = await ModelFactory.getInstance().getAlertModel(tenantId);
     for (const policyFinding of result.policyFindings) {
         for (const filterFinding of policyFinding.conditionFindings) {
             if (filterFinding.findings.length > 0) {
@@ -105,7 +110,7 @@ export async function applyPolicies(messageData: MessageData, message: JsonRpcMe
     }
 
     const messageActions: MessageActionData[] = [];
-    const messageActionModel = await ModelFactory.getInstance().getMessageActionModel();
+    const messageActionModel = await ModelFactory.getInstance().getMessageActionModel(tenantId);
     for (const policyAction of result.policyActions) {
         for (const actionResult of policyAction.actionResults) {
             for (const actionEvent of actionResult.actionEvents) {
@@ -141,10 +146,11 @@ export class MessageFilterService {
     static async processMessage(
         filterContext: MessageFilterContext,
         message: JsonRpcMessageWrapper,
-        timestamp?: Date
+        timestamp?: Date,
+        tenantId: number = DEFAULT_TENANT_ID
     ): Promise<MessageFilterResult> {
         try {
-            const messageModel = await ModelFactory.getInstance().getMessageModel();
+            const messageModel = await ModelFactory.getInstance().getMessageModel(tenantId);
 
             let messageData: MessageData | null = null;
             if (message.origin === 'server' && message.messageId) {
@@ -200,7 +206,7 @@ export class MessageFilterService {
                 });
             }
 
-            const filteredMessage = await applyPolicies(messageData, message);
+            const filteredMessage = await applyPolicies(messageData, message, tenantId);
 
             return {
                 success: true,

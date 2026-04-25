@@ -2,11 +2,14 @@ import { NextRequest } from 'next/server';
 import { JsonResponse } from '../../../../../lib/jsonResponse';
 import { RetentionService } from '../../../../../lib/services/retentionService';
 import { logger } from '@/lib/logging/server';
+import { getApiTenantOr401 } from '@/lib/api/apiAuth';
 
 export async function POST(request: NextRequest) {
     try {
+        const auth = await getApiTenantOr401(request);
+        if (!auth.ok) return auth.response;
         const retentionService = RetentionService.getInstance();
-        const stats = await retentionService.enforceRetention();
+        const stats = await retentionService.enforceRetention(auth.tenantId);
 
         return JsonResponse.payloadResponse('stats', stats);
     } catch (error) {
@@ -17,8 +20,10 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
     try {
+        const auth = await getApiTenantOr401(request);
+        if (!auth.ok) return auth.response;
         const retentionService = RetentionService.getInstance();
-        const stats = await retentionService.getRetentionStats();
+        const stats = await retentionService.getRetentionStats(auth.tenantId);
 
         return JsonResponse.payloadResponse('stats', stats);
     } catch (error) {

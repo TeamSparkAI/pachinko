@@ -3,14 +3,8 @@
 import { useState, useEffect } from 'react';
 import { AppSettingsApiResponse, AppSettingsData } from '@/lib/models/types/appSettings';
 import EditAppSettingsModal from '@/app/components/EditAppSettingsModal';
+import { ApiKeysSection } from '@/app/components/ApiKeysSection';
 import { useModal } from '@/app/contexts/ModalContext';
-
-function maskToken(token: string | undefined): string {
-  const t = token?.trim() ?? '';
-  if (!t) return 'Not set';
-  if (t.length <= 8) return '••••••••';
-  return `${t.slice(0, 4)}…${t.slice(-4)}`;
-}
 
 const ARCADE_PRE_PATH = '/api/v1/webhooks/arcade/pre';
 const ARCADE_POST_PATH = '/api/v1/webhooks/arcade/post';
@@ -27,7 +21,7 @@ export default function SettingsPage() {
 
   const fetchSettings = async () => {
     try {
-      const appResponse = await fetch('/api/v1/appSettings');
+      const appResponse = await fetch('/api/v1/appSettings', { credentials: 'include' });
 
       if (!appResponse.ok) {
         throw new Error('Failed to fetch settings');
@@ -46,6 +40,7 @@ export default function SettingsPage() {
     try {
       const response = await fetch('/api/v1/appSettings', {
         method: 'PUT',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -56,7 +51,7 @@ export default function SettingsPage() {
         throw new Error('Failed to save app settings');
       }
 
-      const refresh = await fetch('/api/v1/appSettings');
+      const refresh = await fetch('/api/v1/appSettings', { credentials: 'include' });
       if (refresh.ok) {
         setAppSettings((await refresh.json()) as AppSettingsApiResponse);
       }
@@ -106,42 +101,11 @@ export default function SettingsPage() {
             </button>
           </div>
           <div className="overflow-x-auto">
-            <div className="grid grid-cols-[max-content,max-content,minmax(1rem,8rem),max-content,max-content] gap-x-4 gap-y-2">
-              <div className="col-span-2 text-xs font-semibold text-gray-700 uppercase tracking-wide pb-2">Filter webhooks</div>
-              <div></div>
-              <div className="col-span-2 text-xs font-semibold text-gray-700 uppercase tracking-wide pb-2">Retention</div>
-
-              <div className="text-sm text-gray-600 flex items-center whitespace-normal">API bearer token</div>
-              <div className="flex items-center">
-                <span className="text-base text-gray-900 font-mono px-2 py-1 bg-gray-100 rounded">
-                  {maskToken(appSettings?.filterApiBearerToken)}
-                </span>
-              </div>
-              <div></div>
-              <div className="text-sm text-gray-600 flex items-center whitespace-normal">Message Retention (days)</div>
-              <div className="flex items-center">
-                <span className="text-base text-gray-900 font-mono px-2 py-1 bg-gray-100 rounded">
-                  {appSettings?.messageRetentionDays ?? 'Not set'}
-                </span>
-              </div>
-
-              <div className="text-sm text-gray-600 flex items-center whitespace-normal">Token enforced</div>
-              <div className="flex items-center">
-                <span
-                  className={`inline-block px-2 py-1 rounded text-xs font-bold ${
-                    appSettings?.filterApiBearerToken?.trim() ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  {appSettings?.filterApiBearerToken?.trim() ? 'Yes' : 'No'}
-                </span>
-              </div>
-              <div></div>
-              <div className="text-sm text-gray-600 flex items-center whitespace-normal">Alert Retention (days)</div>
-              <div className="flex items-center">
-                <span className="text-base text-gray-900 font-mono px-2 py-1 bg-gray-100 rounded">
-                  {appSettings?.alertRetentionDays ?? 'Not set'}
-                </span>
-              </div>
+            <div className="grid grid-cols-[max-content,1fr] gap-x-4 gap-y-2">
+              <div className="text-sm text-gray-600">Message retention (days)</div>
+              <div className="text-base text-gray-900 font-mono">{appSettings?.messageRetentionDays ?? '—'}</div>
+              <div className="text-sm text-gray-600">Alert retention (days)</div>
+              <div className="text-base text-gray-900 font-mono">{appSettings?.alertRetentionDays ?? '—'}</div>
             </div>
           </div>
 
@@ -169,7 +133,17 @@ export default function SettingsPage() {
                   : '—'}
               </code>
             </div>
+            <p className="text-sm text-gray-600 pt-1">
+              These webhooks require{' '}
+              <code className="text-xs bg-gray-100 px-1 rounded">Authorization: Bearer</code> with an API key you
+              create in the <span className="font-medium text-gray-800">API keys</span> section below.
+            </p>
           </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6 w-full">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">API keys</h2>
+          <ApiKeysSection />
         </div>
       </div>
     </div>

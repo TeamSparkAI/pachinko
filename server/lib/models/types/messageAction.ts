@@ -4,6 +4,7 @@ import { MessageOrigin } from "@/lib/jsonrpc";
 
 export interface MessageActionData {
     messageActionId: number;
+    tenantId: number;
     messageId: number;
     policyId: number;
     origin: MessageOrigin;

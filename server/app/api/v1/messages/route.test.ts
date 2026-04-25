@@ -8,6 +8,10 @@ import { JsonResponse } from '@/lib/jsonResponse';
 import { ModelFactory } from '@/lib/models';
 import { SqliteMessageModel } from '@/lib/models/sqlite/message';
 
+jest.mock('@/lib/api/apiAuth', () => ({
+  getApiTenantOr401: jest.fn().mockResolvedValue({ ok: true, tenantId: 1, userId: 1 })
+}));
+
 // Mock the model factory
 jest.mock('@/lib/models', () => ({
   ModelFactory: {

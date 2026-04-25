@@ -1,3 +1,11 @@
+const path = require('path');
+const { config: loadEnv } = require('dotenv');
+
+// Load `.env` from the same root as the custom server (parent of this `server/` app dir).
+const rootDir = path.join(__dirname, '..');
+loadEnv({ path: path.join(rootDir, '.env') });
+loadEnv({ path: path.join(rootDir, '.env.local'), override: true });
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',

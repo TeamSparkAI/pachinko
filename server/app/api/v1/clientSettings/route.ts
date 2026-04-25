@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JsonResponse } from '@/lib/jsonResponse';
 import { logger } from '@/lib/logging/server';
+import { getApiTenantOr401 } from '@/lib/api/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,8 @@ export interface ClientSettings {
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
+    const auth = await getApiTenantOr401(request);
+    if (!auth.ok) return auth.response;
     const settings: ClientSettings = {
       logLevel: logger.getCurrentLogLevel(),
       // Future settings can be added here

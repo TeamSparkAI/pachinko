@@ -7,7 +7,7 @@ import { JsonResponseFetch } from '@/lib/jsonResponse';
 import { useLayout } from '@/app/contexts/LayoutContext';
 import { PolicyData } from '@/lib/models/types/policy';
 
-const emptyPolicy: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt'> = {
+const emptyPolicy: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt' | 'tenantId'> = {
   name: '',
   description: undefined,
   severity: 2,
@@ -29,7 +29,7 @@ export default function NewPolicyPage() {
     return () => setHeaderTitle(undefined);
   }, [setHeaderTitle]);
 
-  const handleSavePolicy = async (policyData: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt'>) => {
+  const handleSavePolicy = async (policyData: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt' | 'tenantId'>) => {
     try {
       const response = await fetch('/api/v1/policies', {
         method: 'POST',

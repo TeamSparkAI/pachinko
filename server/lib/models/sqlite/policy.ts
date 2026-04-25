@@ -4,16 +4,18 @@ import { PolicyData } from '../types/policy';
 
 export class SqlitePolicyModel extends PolicyModel {
     private db: DatabaseClient;
+    private readonly tenantId: number;
 
-    constructor(db: DatabaseClient) {
+    constructor(db: DatabaseClient, tenantId: number) {
         super();
         this.db = db;
+        this.tenantId = tenantId;
     }
 
     async findById(policyId: number): Promise<PolicyData | null> {
         const result = await this.db.query<PolicyData & { methods: string; conditions: string; actions: string }>(
-            'SELECT * FROM policies WHERE policyId = ?',
-            [policyId]
+            'SELECT * FROM policies WHERE policyId = ? AND tenantId = ?',
+            [policyId, this.tenantId]
         );
         if (!result.rows[0]) return null;
 
@@ -29,7 +31,8 @@ export class SqlitePolicyModel extends PolicyModel {
 
     async list(): Promise<PolicyData[]> {
         const result = await this.db.query<PolicyData & { methods: string; conditions: string; actions: string }>(
-            'SELECT * FROM policies ORDER BY name'
+            'SELECT * FROM policies WHERE tenantId = ? ORDER BY name',
+            [this.tenantId]
         );
 
         // Deserialize JSON fields
@@ -46,8 +49,8 @@ export class SqlitePolicyModel extends PolicyModel {
         
         const placeholders = policyIds.map(() => '?').join(',');
         const result = await this.db.query<PolicyData & { methods: string; conditions: string; actions: string }>(
-            `SELECT * FROM policies WHERE policyId IN (${placeholders}) ORDER BY name`,
-            policyIds
+            `SELECT * FROM policies WHERE tenantId = ? AND policyId IN (${placeholders}) ORDER BY name`,
+            [this.tenantId, ...policyIds]
         );
 
         return result.rows.map(policy => ({
@@ -58,12 +61,13 @@ export class SqlitePolicyModel extends PolicyModel {
         }));
     }
 
-    async create(data: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt'>): Promise<PolicyData> {
+    async create(data: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt' | 'tenantId'>): Promise<PolicyData> {
         await this.db.execute(
             `INSERT INTO policies (
-                name, description, severity, origin, methods, conditions, actions, enabled
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                tenantId, name, description, severity, origin, methods, conditions, actions, enabled
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
+                this.tenantId,
                 data.name,
                 data.description || null,
                 data.severity,
@@ -112,15 +116,18 @@ export class SqlitePolicyModel extends PolicyModel {
         }
 
         await this.db.execute(
-            `UPDATE policies SET ${updates.join(', ')} WHERE policyId = ?`,
-            [...params, policyId]
+            `UPDATE policies SET ${updates.join(', ')} WHERE policyId = ? AND tenantId = ?`,
+            [...params, policyId, this.tenantId]
         );
 
         return this.findById(policyId) as Promise<PolicyData>;
     }
 
     async delete(policyId: number): Promise<boolean> {
-        const result = await this.db.execute('DELETE FROM policies WHERE policyId = ?', [policyId]);
+        const result = await this.db.execute('DELETE FROM policies WHERE policyId = ? AND tenantId = ?', [
+            policyId,
+            this.tenantId,
+        ]);
         return result.changes > 0;
     }
 } 
