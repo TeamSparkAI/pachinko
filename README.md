@@ -54,7 +54,7 @@ If neither **`--port`** nor **`PACHINKO_PORT`** is set, the server uses **port 0
 
 ## Environment variables
 
-Set variables in your environment, or put **`.env`** and optionally **`.env.local`** in your **current working directory** (the folder you run **`pachinko`** from). **`.env.local`** overrides **`.env`** for the same key.
+Set variables in your environment, or use **`.env`** / **`.env.local`**. For **`pachinko`**, values are read from the install directory and then from your **current working directory** (later wins for the same key). **`.env.local`** overrides **`.env`** within each directory.
 
 | Variable | Role |
 |----------|------|
@@ -75,7 +75,7 @@ openssl rand -base64 48
 node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
 ```
 
-If **`PACHINKO_SESSION_JWT_SECRET`** is unset, the app may still start using a **development default** and log a warning (or a stronger log outside development). Do not rely on that outside quick local use.
+If **`PACHINKO_SESSION_JWT_SECRET`** is unset, the app still starts with a **development default** and logs a **warning or error once per process** (when the **`pachinko`** server starts). Do not rely on that outside quick local use.
 
 ---
 

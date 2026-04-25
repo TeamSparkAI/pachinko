@@ -133,7 +133,7 @@ Webhook request handling is centralized in **`lib/webhooks/mcpWebhookFilter.ts`*
 
 | Secret / config | Role |
 |-----------------|------|
-| **`PACHINKO_SESSION_JWT_SECRET`** | Signs and verifies the **session cookie JWT** only. Set in the environment or **`.env`** in the process cwd when running **`pachinko`**; **`npm run start:dev`** reads **`.env`** from the repository root. If unset, a development default may be used with a warning. |
+| **`PACHINKO_SESSION_JWT_SECRET`** | Signs and verifies the **session cookie JWT** only. Set in the environment or **`.env`**: bundled **`pachinko`** loads install dir then **cwd** (same key: **cwd** wins); **`npm run start:dev`** uses the repository root. If unset, a development default may be used with a one-time startup warning. |
 
 User passwords and API key secrets are **never** stored except as **Argon2id** hashes in **`users`** / **`tenant_api_keys`**.
 

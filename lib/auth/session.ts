@@ -2,7 +2,6 @@ import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
 import { SESSION_COOKIE_NAME } from './constants';
-import { logger } from '@/lib/logging/server';
 
 export interface SessionPayload {
   userId: number;
@@ -16,22 +15,7 @@ const DEV_FALLBACK_SESSION_SECRET = '__pachinko_dev_session_secret_change_me__';
 
 function getSessionSecret(): string {
   const s = process.env.PACHINKO_SESSION_JWT_SECRET?.trim();
-  if (s) {
-    return s;
-  }
-  // `next start` and many hosts set NODE_ENV=production even for local runs, so we never throw
-  // here—only log. Real deployments must set PACHINKO_SESSION_JWT_SECRET so sessions are not
-  // predictable from the built-in default.
-  if (process.env.NODE_ENV === 'development') {
-    logger.warn(
-      'PACHINKO_SESSION_JWT_SECRET is unset; using a fixed dev default (set the env for non-local use).'
-    );
-  } else {
-    logger.error(
-      'PACHINKO_SESSION_JWT_SECRET is unset; using an insecure built-in default. Set PACHINKO_SESSION_JWT_SECRET (e.g. openssl rand -base64 48) before production or any shared host.'
-    );
-  }
-  return DEV_FALLBACK_SESSION_SECRET;
+  return s || DEV_FALLBACK_SESSION_SECRET;
 }
 
 export function signSessionToken(payload: SessionPayload): string {

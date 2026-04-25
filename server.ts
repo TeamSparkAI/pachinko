@@ -9,6 +9,7 @@ import { getApiConfigPath } from '@/lib/utils/paths';
 import { removePachinkoAppData } from '@/lib/cleanAppData';
 import { resetDefaultTenantUsers } from '@/lib/resetDefaultTenantUsers';
 import { logger } from '@/lib/logging/server';
+import { warnIfUnsetSessionSecretAtStartup } from '@/lib/auth/warnSessionSecretAtStartup';
 import * as fs from 'fs';
 import * as path from 'path';
 import packageJson from './package.json';
@@ -122,6 +123,7 @@ async function start() {
 
     logger.info('Starting server');
     logger.info(`Log level set to: ${logger.getCurrentLogLevel()}`);
+    warnIfUnsetSessionSecretAtStartup();
 
     // Determine port to use
     let port = parsePort();
