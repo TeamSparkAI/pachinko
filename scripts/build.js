@@ -43,6 +43,7 @@ try {
 function copyNextStandalone() {
   const candidates = [
     path.join(appRoot, '.next', 'standalone', '.next'),
+    path.join(appRoot, '.next', 'standalone', 'teamspark-pachinko', '.next'),
     path.join(appRoot, '.next', 'standalone', 'pachinko', '.next'),
     path.join(appRoot, '.next', 'standalone', 'pachinko-server', '.next'),
     path.join(appRoot, '.next', 'standalone', 'server', '.next')
@@ -82,16 +83,16 @@ if (fs.existsSync(nextStaticSrc)) {
   process.exit(1);
 }
 
-console.log('📋 Copying server executable to dist/toolvault...');
+console.log('📋 Copying server executable to dist/pachinko...');
 const serverExecutable = path.join(appRoot, 'dist', 'server.js');
-const serverDest = path.join(distDir, 'toolvault');
+const serverDest = path.join(distDir, 'pachinko');
 if (!fs.existsSync(serverExecutable)) {
   console.error('❌ Bundled server.js not found at', serverExecutable);
   process.exit(1);
 }
 fs.copyFileSync(serverExecutable, serverDest);
 fs.chmodSync(serverDest, 0o755);
-console.log('✅ Server executable copied to dist/toolvault');
+console.log('✅ Server executable copied to dist/pachinko');
 
 console.log('📋 Copying appData files to dist/appData...');
 const appDataSrc = path.join(appRoot, 'appData');
@@ -113,19 +114,19 @@ if (fs.existsSync(publicSrc)) {
 }
 
 console.log('\n🔍 Verifying build output...');
-const toolvaultExists = fs.existsSync(path.join(distDir, 'toolvault'));
+const pachinkoExists = fs.existsSync(path.join(distDir, 'pachinko'));
 const nextExists = fs.existsSync(path.join(distDir, '.next'));
 
-if (toolvaultExists && nextExists) {
+if (pachinkoExists && nextExists) {
   console.log('✅ Build artifacts created successfully');
   console.log(`📁 Distribution in: ${distDir}`);
-  console.log('   - toolvault (bundled server)');
+  console.log('   - pachinko (bundled server)');
   console.log('   - .next/ (Next.js build)');
   console.log('   - public/ (static assets)');
   console.log('   - appData/ (migrations, data)');
 } else {
   console.error('❌ Failed to create all components');
-  if (!toolvaultExists) console.error('   - Missing: toolvault executable');
+  if (!pachinkoExists) console.error('   - Missing: pachinko executable');
   if (!nextExists) console.error('   - Missing: .next directory');
   process.exit(1);
 }

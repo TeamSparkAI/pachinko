@@ -2,9 +2,9 @@ import * as path from 'path';
 import * as os from 'os';
 
 // App data path:
-// - MacOS: ~/Library/Application Support/ToolVault/
-// - Linux: ~/.config/toolvault/
-// - Windows: %APPDATA%\ToolVault\
+// - macOS: ~/Library/Application Support/Pachinko/
+// - Linux: ~/.config/pachinko/
+// - Windows: %APPDATA%\Pachinko\
 
 /**
  * Get the application data directory path for the current OS
@@ -14,14 +14,11 @@ export function getAppDataPath(): string {
     const platform = os.platform();
 
     if (platform === 'win32') {
-        // Windows: %APPDATA%\ToolVault\
-        return path.join(process.env.APPDATA || '', 'ToolVault');
+        return path.join(process.env.APPDATA || '', 'Pachinko');
     } else if (platform === 'darwin') {
-        // macOS: ~/Library/Application Support/ToolVault/
-        return path.join(os.homedir(), 'Library', 'Application Support', 'ToolVault');
+        return path.join(os.homedir(), 'Library', 'Application Support', 'Pachinko');
     } else {
-        // Linux and other Unix-like systems: ~/.config/toolvault/
-        return path.join(os.homedir(), '.config', 'toolvault');
+        return path.join(os.homedir(), '.config', 'pachinko');
     }
 }
 

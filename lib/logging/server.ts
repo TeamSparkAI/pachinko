@@ -1,7 +1,7 @@
 import winston from 'winston';
 import path from 'path';
 import { parseLogLevel, LogLevel } from './utils';
-import { getAppDataPath } from '@/utils/paths';
+import { getAppDataPath } from '@/lib/utils/paths';
 import * as fs from 'fs';
 import DailyRotateFile from 'winston-daily-rotate-file';
 
@@ -65,7 +65,7 @@ const transports = [
   }),
   // Combined transport for all logs with rotation
   new DailyRotateFile({
-    filename: path.join(logsDir, 'toolvault-%DATE%.log'),
+    filename: path.join(logsDir, 'pachinko-%DATE%.log'),
     datePattern: 'YYYY-MM-DD',
     maxSize: '20m', // 20MB max file size
     maxFiles: '7d', // Keep 7 days of combined logs

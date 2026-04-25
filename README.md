@@ -1,27 +1,57 @@
 # TeamSpark Pachinko Policy Engine
 
-**An integrated platform for AI agent tool management and security**
+**An AI tool call policy engine designed for Arcade.dev**
 
 ## Overview
 
-Apply security policies to the traffic flowing between agents and MCP servers to protect your API tokens, secrets, PII, and more.
+Apply security policies to tool calls happening in Arcade.dev to protect your API tokens, secrets, PII, and more. Pachinko provides webhook entrypoints and bearer token auth making it quick and easy to integration with Arcade.dev.
 
-## Installation Requirements
+## Installation requirements
 
-Node.js v18+ and Docker (or compatible, aliased runtime)
+- **Node.js 20 or newer** — the production server bundle is built for **Node 20** (`esbuild --target=node20`).
+- **macOS**, **Windows**, or **Linux** (native modules include `sqlite3`, `argon2`, and `sharp`).
+- **From npm:** package **`teamspark-pachinko`** (`npm install teamspark-pachinko`). The CLI binary name is **`pachinko`**.
 
-Supported operating systems: MacOS, Windows, and Linux
+## Running the server
 
-## Configuration: session signing secret (`PACHINKO_SESSION_JWT_SECRET`)
+- **From a git checkout (development):** from the repo root, `npm run start:dev` (runs Next build then `tsx server.ts`). Default dev script uses port **3000**; adjust in `package.json` if needed.
+- **From a git checkout (production build):** `npm run build`, then `npm run start:prod` or `node dist/server.js`, or `./dist/pachinko` / `npm run start:server` (same bundled entry as `dist/pachinko`).
+- **After `npm install teamspark-pachinko`:** run **`pachinko`** or **`npx pachinko`** (same CLI flags as below). The published tarball only includes **`dist/`**; run **`npm run build`** before **`npm publish`** so `dist/` is populated.
 
-The web UI uses a signed, httpOnly session cookie. The server variable **`PACHINKO_SESSION_JWT_SECRET`** is **only** used to sign (and verify) that cookie. It is not an API key, not a user password, and is not the same as the tenant bearer tokens you create in Settings.
+## Command-line options (`pachinko` / `dist/pachinko` / `node dist/server.js`)
 
-### Local development (`.env` at the **repository root**)
+| Option | Description |
+|--------|-------------|
+| `--port <n>` | Listen on TCP port `n` (1–65535). |
+| `--log-level <level>` | One of: `error`, `warn`, `info`, `debug`, `trace`. |
+| `--clean` | Delete the Pachinko **app data directory** (SQLite, logs, `api.json`, etc.) and **exit**. |
+| `--help`, `-h` | Print help and exit. |
 
-Environment files live at the **repository root** (same directory as `package.json`, `next.config.js`, and `server.ts`), alongside the app source.
+From a **git checkout** you can also run **`npm run clean`** (same logic via `scripts/clean.ts`).
 
-1. In the **root directory** of the clone, copy the sample file: `cp .env.example .env.local` (or `.env` — see precedence below)
-2. Set a strong random value for `PACHINKO_SESSION_JWT_SECRET` using either command below, then paste the **entire output line** (no quotes) as the value after `=` in the file
+If neither **`--port`** nor **`PACHINKO_PORT`** is set, the server uses **port 0** (OS assigns a free port); check logs for the URL. **`--log-level`** overrides **`PACHINKO_LOG_LEVEL`** when both are relevant.
+
+## Environment variables
+
+**`.env`** and **`.env.local`** in the **app root** are loaded first by **`loadEnv.ts`** (and **`next.config.js`** for Next). When running from **`dist/`**, that root is the **parent directory of `dist/`** (so a `.env` next to the installed `dist/` folder is picked up). **`.env.local`** overrides **`.env`** for duplicate keys. You can set the same names in the process environment (containers, systemd, etc.) instead of files.
+
+| Variable | Role |
+|----------|------|
+| **`PACHINKO_SESSION_JWT_SECRET`** | Signs and verifies the **httpOnly** session cookie (**JWT**) for the web UI. **Not** a user password or tenant API key. **Strongly set in production**; if unset in development the app may use a fixed default with a warning — do not rely on that outside local use. |
+| **`PACHINKO_PORT`** | Default HTTP port (integer 1–65535). Ignored if **`--port`** is passed. |
+| **`PACHINKO_LOG_LEVEL`** | Server log level: `error`, `warn`, `info`, `debug`, `trace`. Default **`info`**. Ignored if **`--log-level`** is passed. |
+| **`NODE_ENV`** | Standard Node/Next flag (e.g. `production` vs `development`) — affects cookie **`Secure`**, DB driver verbosity, and similar behavior. |
+
+See **`.env.example`** for a copy-paste template (including optional **`PACHINKO_PORT`** / **`PACHINKO_LOG_LEVEL`**).
+
+### Session signing secret (`PACHINKO_SESSION_JWT_SECRET`) in more detail
+
+The web UI uses a signed, httpOnly session cookie. **`PACHINKO_SESSION_JWT_SECRET`** is **only** used to sign and verify that cookie.
+
+**Local files (repo root when developing from git)**
+
+1. Copy **`cp .env.example .env.local`** (or `.env`).
+2. Set a strong value, e.g. generate with:
 
 ```bash
 openssl rand -base64 48
@@ -31,18 +61,16 @@ openssl rand -base64 48
 node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
 ```
 
-3. From the repository root, run `npm run start:prod` or `npm run start:dev` (or `npm run build` then start the bundled output). The custom server (`server.ts`) and Next config load **`.env`** first, then **`.env.local`**, with the latter **overriding** the former for any duplicate keys. Committed `/.env.example` at the root documents variables; real `.env` files are **gitignored**—do not commit secrets.
+3. Paste the **single line** of output as the value after `=` (no surrounding quotes in the file unless you intend quotes to be part of the secret).
 
-### Without a file (injected environment)
-
-Set the same variable in the process environment, for example:
+**Without a file**
 
 ```bash
 export PACHINKO_SESSION_JWT_SECRET="$(openssl rand -base64 48)"
 ```
 
-Use your host’s usual mechanism: Docker `--env` / `env_file`, Kubernetes Secrets, cloud provider “app settings,” CI secrets, and so on. **Production and any shared or internet-facing deployment** should set a unique secret (not the dev fallback) and should **not** commit it to the repository.
+Use your host’s usual mechanism (Docker `env_file`, Kubernetes Secrets, cloud app settings, CI secrets). **Do not commit** real `.env` / `.env.local` files.
 
-### When you can skip the file (not recommended for production)
+### When the secret is unset (not recommended for production)
 
-If `PACHINKO_SESSION_JWT_SECRET` is unset, the app still starts but uses a **fixed development default** and logs a warning (or an error-level log in non-development). That path exists for convenience only; for anything beyond solo local use, set the variable as above.
+If **`PACHINKO_SESSION_JWT_SECRET`** is unset, the app may still start using a **development default** and log a warning (or stronger log outside development). Use that only for quick local experiments.

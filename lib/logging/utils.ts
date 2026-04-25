@@ -11,9 +11,9 @@ export function parseLogLevel(): LogLevel {
     }
   }
   
-  // Check environment variable LOG_LEVEL
-  if (process.env.TOOLVAULT_LOG_LEVEL) {
-    const envLogLevel = process.env.TOOLVAULT_LOG_LEVEL.toLowerCase();
+  // Check environment variable PACHINKO_LOG_LEVEL
+  if (process.env.PACHINKO_LOG_LEVEL) {
+    const envLogLevel = process.env.PACHINKO_LOG_LEVEL.toLowerCase();
     if (['error', 'warn', 'info', 'debug', 'trace'].includes(envLogLevel)) {
       return envLogLevel as LogLevel;
     }

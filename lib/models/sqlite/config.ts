@@ -1,9 +1,9 @@
 import { join } from 'path';
-import { getAppDataPath } from '@/utils/paths';
+import { getAppDataPath } from '@/lib/utils/paths';
 
 export const DB_CONFIG = {
   // Database file path in app data directory
-  filename: 'toolvault.sqlite',
+  filename: 'pachinko.sqlite',
   
   // Get full database path
   getPath: () => join(getAppDataPath(), DB_CONFIG.filename),

@@ -9,10 +9,6 @@ loadEnv({ path: path.join(rootDir, '.env.local'), override: true });
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  experimental: {
-    // Next 14: hoisted registry client deps use package.json "exports" that webpack mishandles.
-    serverComponentsExternalPackages: ['npm-registry-fetch', 'make-fetch-happen'],
-  },
   webpack: (config, { isServer }) => {
     // Exclude test files from the build
     config.module.rules.push({

@@ -1,12 +1,12 @@
 {
-  "name": "pachinko",
-  "version": "1.1.0",
+  "name": "teamspark-pachinko",
+  "version": "1.0.0",
   "description": "Policy engine and web UI (webhook-fed MCP message filtering)",
   "private": true,
   "main": "index.js",
   "types": "index.d.ts",
   "bin": {
-    "toolvault": "./dist/toolvault"
+    "pachinko": "./dist/pachinko"
   },
   "repository": {
     "type": "git",
@@ -35,7 +35,7 @@
     "start": "node dist/server.js",
     "start:prod": "node dist/server.js",
     "start:dev": "npm run build:next && npx tsx server.ts -- --port 3000",
-    "start:server": "./dist/toolvault",
+    "start:server": "./dist/pachinko",
     "migrate": "tsx lib/models/sqlite/runMigration.ts",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -59,8 +59,6 @@
     "loglevel": "^1.9.2",
     "nanoid": "^5.0.0",
     "next": "^14.2.29",
-    "npm-registry-fetch": "^19.0.0",
-    "pypi-info": "^2.6.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.15.3",
@@ -83,7 +81,6 @@
     "@types/jsonwebtoken": "^9.0.9",
     "@types/loglevel": "^1.5.4",
     "@types/node": "^20.17.54",
-    "@types/npm-registry-fetch": "^8.0.8",
     "@types/react": "^18.2.61",
     "@types/react-dom": "^18.2.19",
     "@types/sqlite3": "^3.1.11",

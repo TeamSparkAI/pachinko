@@ -4,7 +4,7 @@ import { getDb, DatabaseError } from './database';
 import { existsSync } from 'fs';
 import { mkdir } from 'fs/promises';
 import { DB_CONFIG } from './config';
-import { getAppDataPath } from '@/utils/paths';
+import { getAppDataPath } from '@/lib/utils/paths';
 import { logger } from '@/lib/logging/server';
 import { findStaticDir } from '@/lib/utils/static';
 import { ensureBootstrapData } from '@/lib/auth/bootstrap';
