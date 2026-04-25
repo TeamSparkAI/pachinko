@@ -1,13 +1,17 @@
 import path from 'path';
 import { config } from 'dotenv';
 
-/**
- * Repository / app root (directory containing `.env`).
- * - `loadEnv.ts` via tsx: __dirname is repo root
- * - Bundled `dist/server.js`: __dirname is `.../dist` → one level up to repo root
- */
-const envFileRoot =
-  path.basename(__dirname) === 'dist' ? path.join(__dirname, '..') : __dirname;
+/** Bundled `server.js` / `pachinko` both live in a directory named `dist`. */
+const isBundledServer = path.basename(__dirname) === 'dist';
 
-config({ path: path.join(envFileRoot, '.env') });
-config({ path: path.join(envFileRoot, '.env.local'), override: true });
+/**
+ * - **Bundled** (`dist/server.js`, `dist/pachinko`): load **`.env`** / **`.env.local`** from
+ *   **`process.cwd()`** — where you run the command — not from inside `node_modules` or the global
+ *   package install path.
+ * - **Dev** (`tsx server.ts`): load from **`__dirname`** (directory of `server.ts`, i.e. repo root
+ *   in this layout) so repo **`.env`** works even if cwd differs.
+ */
+const envDir = isBundledServer ? process.cwd() : __dirname;
+
+config({ path: path.join(envDir, '.env') });
+config({ path: path.join(envDir, '.env.local'), override: true });

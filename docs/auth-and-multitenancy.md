@@ -9,7 +9,7 @@ This document describes how **multi-tenant isolation**, **human sign-in**, and *
 - **Tenant isolation:** Rows that belong to a customer include **`tenantId`** (foreign key to **`tenants`**). Application code passes **`tenantId` explicitly** into the SQLite model layer; queries and writes for tenant-owned data are scoped with **`tenant_id = ?`** (or equivalent).
 - **Humans:** Browser users sign in at **`/login`**; the UI and authenticated APIs use a **signed session** in an **httpOnly** cookie (**`pachinko_session`**) whose JWT carries **`userId`**, **`tenantId`**, and **`exp`**.
 - **Machines and webhooks:** Callers without a browser session send **`Authorization: Bearer`** with a **tenant API key** string **`{keyLookupId}.{secret}`**. The matching **`tenant_api_keys`** row supplies **`tenantId`** for the request.
-- **Empty install → first login:** Migrations plus server init **idempotently** ensure a default tenant and a **bootstrap admin user** when **`users`** is empty, so development can log in without hand-written SQL. API keys are **not** created at bootstrap; operators create them in **Settings** after login.
+- **Empty install → first account:** Migrations plus server init ensure the **default tenant** from **`001`** exists. The app **does not** insert a **`users`** row automatically. **`/login`** calls **`GET /api/auth/setup-status`**; if **`hasUsers`** is false, the page shows **Create admin account** (email, password, confirm); **`POST /api/auth/register`** creates the first **`users`** row (default **`tenantId`**, **`admin`**) and sets the session cookie. If users already exist, **`/login`** shows **Sign in**. API keys are still created in **Settings** after login.
 
 ---
 
@@ -63,9 +63,8 @@ Each row is one issuable secret for one tenant (multiple keys per tenant allowed
 
 ## Bootstrap and migrations
 
-- **Schema** lives in **`server/appData/migrations/001_initial_arcade.sql`**. It includes DDL, the default **`tenants`** row where needed, and non-secret static data (e.g. built-in **`policy_elements`** tied to the default tenant). **No** **`users`** rows with precomputed password hashes in SQL; **no** **`tenant_api_keys`** rows in migrations.
-- After migrations run, **`ensureBootstrapData`** (see **`server/lib/auth/bootstrap.ts`**) runs from database initialization: if **`users`** is empty, it inserts the bootstrap **`users`** row with **`argon2.hash`** at runtime. Email and initial password come from **`server/lib/auth/constants.ts`** (**`BOOTSTRAP_ADMIN_EMAIL`**, **`BOOTSTRAP_ADMIN_PASSWORD`**). The **`/login`** form does **not** pre-fill credentials.
-- **Production:** treat fixed bootstrap credentials as **development convenience** only; harden with env gating, forced password change, invites, or SSO as the product matures.
+- **Schema** lives in **`appData/migrations/001_initial_arcade.sql`**. It includes DDL, the default **`tenants`** row where needed, and non-secret static data (e.g. built-in **`policy_elements`** tied to the default tenant). **No** **`users`** rows with precomputed password hashes in SQL; **no** **`tenant_api_keys`** rows in migrations.
+- After migrations run, **`ensureBootstrapData`** (**`lib/auth/bootstrap.ts`**) verifies the default **`tenants`** row exists; it does **not** create users.
 - **Schema evolution:** v1 still assumes **fresh installs or wipe-and-recreate** when **`001`** changes in breaking ways.
 
 ---
@@ -75,11 +74,13 @@ Each row is one issuable secret for one tenant (multiple keys per tenant allowed
 ### Browser session (humans)
 
 1. **`POST /api/auth/login`** — JSON body **`email`**, **`password`**. Server finds **`users`** by **email**, verifies **Argon2id**, then sets an **httpOnly** cookie **`pachinko_session`** containing a **signed JWT** (**`jsonwebtoken`**) with **`userId`**, **`tenantId`**, and **`exp`**.
-2. **`POST /api/auth/logout`** — Clears the session cookie.
-3. **`GET /api/auth/session`** — Validates the session and returns **`{ user, tenant }`** from the database (or **401**).
-4. **`POST /api/auth/password`** — **Session required**; verifies current password and updates **`passwordHash`**.
+2. **`GET /api/auth/setup-status`** — Public; returns **`{ hasUsers: boolean }`** so **`/login`** can choose sign-in vs first-account UI.
+3. **`POST /api/auth/register`** — Public; **only** when **`SELECT COUNT(*) FROM users`** is **0** (enforced inside **`BEGIN IMMEDIATE`**). Creates the first **`users`** row and sets the session cookie like login. Returns **403** if a user already exists.
+4. **`POST /api/auth/logout`** — Clears the session cookie.
+5. **`GET /api/auth/session`** — Validates the session and returns **`{ user, tenant }`** from the database (or **401**).
+6. **`POST /api/auth/password`** — **Session required**; verifies current password and updates **`passwordHash`**.
 
-**Next.js middleware** (**`server/middleware.ts`**): for **HTML pages** (excluding **`/login`**, **`/api/*`**, **`/_next/*`**, and common static file extensions), if the **`pachinko_session`** cookie is **missing**, the user is redirected to **`/login`**. Middleware does **not** verify JWT signature or expiry in Edge — only **cookie presence**. **`/api/*`** is never redirected by this middleware; each API handler performs **full** auth where required.
+**Next.js middleware** (**`middleware.ts`**): for **HTML pages** (excluding **`/login`**, **`/api/*`**, **`/_next/*`**, and common static file extensions), if the **`pachinko_session`** cookie is **missing**, the user is redirected to **`/login`**. Middleware does **not** verify JWT signature or expiry in Edge — only **cookie presence**. **`/api/*`** is never redirected by this middleware; each API handler performs **full** auth where required.
 
 ### Tenant API key (machines, including Arcade)
 
@@ -92,7 +93,7 @@ Each row is one issuable secret for one tenant (multiple keys per tenant allowed
 
 | Area | Behavior |
 |------|----------|
-| **Login** | **`/login`** — email and password; server finds **`users`** by email and reads **`tenantId`** from that row. |
+| **Login / first account** | **`/login`** — if **`setup-status`** reports no users, **Create admin account** (email, password, confirm → **`POST /api/auth/register`**). Otherwise **Sign in** (**`POST /api/auth/login`**). |
 | **Logout** | UI control → **`POST /api/auth/logout`**, then redirect to **`/login`**. |
 | **Change password** | **`/account/password`** — current + new password → **`POST /api/auth/password`**. |
 | **Not implemented** | Forgot-password, email magic links, invites, OAuth. |
@@ -103,7 +104,7 @@ Each row is one issuable secret for one tenant (multiple keys per tenant allowed
 
 ### Request context
 
-**`server/lib/auth/resolveRequestContext.ts`** implements:
+**`lib/auth/resolveRequestContext.ts`** implements:
 
 1. Valid **session cookie** → **`authMode: 'session'`**, **`userId`**, **`tenantId`**.
 2. Else valid **Bearer API key** → **`authMode: 'bearer'`**, **`tenantId`**, **`userId`** null.
@@ -111,7 +112,7 @@ Each row is one issuable secret for one tenant (multiple keys per tenant allowed
 
 ### API helpers
 
-- **`getApiTenantOr401`** (**`server/lib/api/apiAuth.ts`**) — Used by most **`/api/v1/*`** routes: **session or tenant Bearer**; returns **`tenantId`** and **`userId`** (null for Bearer-only).
+- **`getApiTenantOr401`** (**`lib/api/apiAuth.ts`**) — Used by most **`/api/v1/*`** routes: **session or tenant Bearer**; returns **`tenantId`** and **`userId`** (null for Bearer-only).
 - **`getApiSessionOr403`** — Stricter: **session login only** (e.g. **API key management** in Settings). Bearer-only requests get **403 Session required**.
 
 ### Route categories (summary)
@@ -121,10 +122,10 @@ Each row is one issuable secret for one tenant (multiple keys per tenant allowed
 | **`/api/v1/*` data APIs** | Session **or** tenant Bearer (**`getApiTenantOr401`**) |
 | **API key CRUD** | Session only (**`getApiSessionOr403`**) |
 | **`/api/v1/webhooks/arcade/pre`**, **`/post`** | Tenant Bearer only (Arcade is an HTTP client with a configured bearer) |
-| **`/api/auth/login`**, **`logout`** | Public |
+| **`/api/auth/login`**, **`logout`**, **`setup-status`**, **`register`** | Public |
 | **`/api/auth/session`**, **`password`** | Session required |
 
-Webhook request handling is centralized in **`server/lib/webhooks/mcpWebhookFilter.ts`** (Bearer + **`tenant_api_keys`**).
+Webhook request handling is centralized in **`lib/webhooks/mcpWebhookFilter.ts`** (Bearer + **`tenant_api_keys`**).
 
 ---
 
@@ -132,8 +133,7 @@ Webhook request handling is centralized in **`server/lib/webhooks/mcpWebhookFilt
 
 | Secret / config | Role |
 |-----------------|------|
-| **`PACHINKO_SESSION_JWT_SECRET`** | Signs and verifies the **session cookie JWT** only. Loaded from the **repository root** **`.env`** / **`.env.local`** (with **`server/loadEnv.ts`** and **`server/next.config.js`** wiring). If unset, development may use a fixed default with a warning; production should set a strong random value. |
-| **Bootstrap password** | Literal initial password for the first user lives in **`server/lib/auth/constants.ts`** (**`BOOTSTRAP_ADMIN_PASSWORD`**), not in env. |
+| **`PACHINKO_SESSION_JWT_SECRET`** | Signs and verifies the **session cookie JWT** only. Set in the environment or **`.env`** in the process cwd when running **`pachinko`**; **`npm run start:dev`** reads **`.env`** from the repository root. If unset, a development default may be used with a warning. |
 
 User passwords and API key secrets are **never** stored except as **Argon2id** hashes in **`users`** / **`tenant_api_keys`**.
 
@@ -143,16 +143,16 @@ User passwords and API key secrets are **never** stored except as **Argon2id** h
 
 | Concern | Location |
 |---------|----------|
-| Bootstrap user | **`server/lib/auth/bootstrap.ts`**, constants **`server/lib/auth/constants.ts`** |
-| Session JWT + cookie | **`server/lib/auth/session.ts`** |
-| Password / API key hashing | **`server/lib/auth/password.ts`** (and related) |
-| Bearer key parsing | **`server/lib/auth/apiKeyFormat.ts`** |
-| Request context | **`server/lib/auth/resolveRequestContext.ts`** |
-| API route auth wrappers | **`server/lib/api/apiAuth.ts`** |
-| Auth HTTP routes | **`server/app/api/auth/*/route.ts`** |
-| API keys HTTP routes | **`server/app/api/v1/apiKeys/**`** |
-| Edge middleware | **`server/middleware.ts`** |
-| OpenAPI / Swagger auth description | **`server/public/openapi.yaml`** |
+| Default tenant check after migrate | **`lib/auth/bootstrap.ts`**, **`DEFAULT_TENANT_ID`** in **`lib/auth/constants.ts`** |
+| Session JWT + cookie | **`lib/auth/session.ts`** |
+| Password / API key hashing | **`lib/auth/password.ts`** (and related) |
+| Bearer key parsing | **`lib/auth/apiKeyFormat.ts`** |
+| Request context | **`lib/auth/resolveRequestContext.ts`** |
+| API route auth wrappers | **`lib/api/apiAuth.ts`** |
+| Auth HTTP routes | **`app/api/auth/*/route.ts`** |
+| API keys HTTP routes | **`app/api/v1/apiKeys/**`** |
+| Edge middleware | **`middleware.ts`** |
+| OpenAPI / Swagger auth description | **`public/openapi.yaml`** |
 
 ---
 
@@ -170,7 +170,7 @@ Examples of follow-up hardening (no commitment in v1):
 
 - **OAuth / OIDC:** Map external identity to **`users`** (and **`tenantId`**); keep session payload shape **`userId` + tenantId`** so API scoping stays the same; **`passwordHash`** can be null for SSO-only accounts.
 - **Multi-tenant login UX:** If the same email can exist in multiple tenants, add explicit tenant choice (slug, domain, etc.) at login.
-- **Self-enrollment (sign-up):** A flow distinct from **`/login`** where a new customer **creates an account** and **provisions a new tenant** in one step (e.g. org name + **`tenants`** row with unique **`slug`**, first **`users`** row as admin, then session). Today only the **bootstrap** path seeds the first tenant/user on an empty DB; self-service signup would require product decisions: open registration vs invite-only, email verification, abuse controls (rate limits, CAPTCHA), optional billing/plan selection, and whether the bootstrap user remains a dev-only shortcut or is removed when signup exists.
+- **Multi-tenant self-enrollment:** Today the **first** human is tied to the **default tenant** from **`001`**. A future flow could create a new **`tenants`** row + first admin in one step (org name, slug, etc.), with product decisions: open registration vs invite-only, email verification, abuse controls (rate limits, CAPTCHA), billing.
 
 ---
 
@@ -180,28 +180,14 @@ Examples of follow-up hardening (no commitment in v1):
 - **SPA session bootstrap:** The shell does **not** yet call **`GET /api/auth/session`** globally on load to hydrate user/tenant or to fail fast on stale cookies.
 - **Rate limiting:** Not implemented on login or webhooks.
 - **Tests:** No dedicated unit tests yet for password hash round-trip or Bearer **`keyLookupId.secret`** parsing edge cases.
-- **Production bootstrap:** No env gate, no forced password change on first login, no invite-only path.
+- **First-account exposure:** **`POST /api/auth/register`** is allowed whenever **`users`** is empty; anyone who can reach the server first can create the admin. Mitigations for internet-facing hosts: network ACLs, **`PACHINKO_ALLOW_WEB_REGISTER`**-style env (not implemented yet), or out-of-band provisioning only.
 
----
+--- 
 
-## Bootstrap and initial tenant data (preferred patterns)
+## Bootstrap and initial tenant data (additional options)
 
-Today the first **tenant** and **bootstrap admin** come from **`ensureBootstrapData`** after migrations (see **Bootstrap and migrations** above), with email/password from **constants** when **`users`** is empty. That is convenient for development; production should move toward **explicit, reproducible** provisioning.
+The **default tenant** comes from migration **`001`**; the **first user** is created through **`/login`** when the DB has no **`users`** (see above). Set **`PACHINKO_SESSION_JWT_SECRET`** in the environment or **`.env`** as in the README.
 
-### What not to rely on
+To reset the users for the default tenant, run `pachinko --admin-reset`
 
-- **`npm install` / `postinstall`:** Runs on every install and in **CI and container builds**, often **without** a database, **without** a TTY, and without a clear “this is the deployer” context. It is a poor place for **interactive** questions or **deployment-specific** tenant names, admin email, or passwords. Use install only for dependencies (and optional non-secret codegen), not for tenant bootstrap.
-
-### Preferred directions
-
-1. **Dedicated CLI after the database exists** — e.g. **`npm run bootstrap`** / **`npx tsx scripts/init-tenant.ts`** (names illustrative) run **after** **`migrate`** (or equivalent) so SQLite and **`tenants` / `users`** tables exist. Accept **flags** (`--tenant-name`, `--admin-email`, …) and/or **environment variables** for non-interactive and CI/Docker. Optionally prompt with **readline** when stdin is a TTY and no flags/env are set.
-2. **First application start** — Same logic as (1) but triggered when the server detects an empty **`users`** table: either refuse to serve until an init step completes, or print a **one-time setup** URL / command. Keeps “first run” semantics without tying them to **`npm install`**.
-3. **Secrets and repeatability** — Prefer **`.env`** (gitignored) or the host’s secret store for **admin password** and **`PACHINKO_SESSION_JWT_SECRET`**, not values written into the repo from a script. Automation should use **env-only** paths; humans can use CLI prompts locally.
-
-### Summary
-
-| Approach | Role |
-|----------|------|
-| **`npm install`** | Dependencies only — **not** for initial tenant or admin identity. |
-| **CLI / first-run init** (post-migrate) | **Preferred** for collecting or injecting initial **tenant** + **first user** when moving beyond fixed constants. |
-| **Env and flags** | **Preferred** for production and CI; prompts optional for local use. |
+It deletes all **`users`** for the **default tenant** only, then exits; On the next visit to **`/login`** offers **Create admin account** again.

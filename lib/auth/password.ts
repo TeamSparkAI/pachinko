@@ -1,4 +1,5 @@
 import * as argon2 from 'argon2';
+import { MIN_PASSWORD_LENGTH } from './constants';
 
 const ARGON2_OPTIONS: argon2.Options = {
   type: argon2.argon2id,
@@ -14,4 +15,12 @@ export async function verifyPassword(hash: string, plain: string): Promise<boole
   } catch {
     return false;
   }
+}
+
+/** Returns an error message or `null` if the password is acceptable. */
+export function validateNewPassword(plain: string): string | null {
+  if (plain.length < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+  }
+  return null;
 }

@@ -2,56 +2,70 @@
 
 **An AI tool call policy engine designed for Arcade.dev**
 
-## Overview
+Apply security policies to tool calls happening in Arcade.dev to protect your API tokens, secrets, PII, and more. Pachinko provides webhook entrypoints and bearer token auth making it quick and easy to integrate with Arcade.dev.
 
-Apply security policies to tool calls happening in Arcade.dev to protect your API tokens, secrets, PII, and more. Pachinko provides webhook entrypoints and bearer token auth making it quick and easy to integration with Arcade.dev.
+## Install and run
 
-## Installation requirements
+**You need Node.js 20 or newer.**
 
-- **Node.js 20 or newer** — the production server bundle is built for **Node 20** (`esbuild --target=node20`).
-- **macOS**, **Windows**, or **Linux** (native modules include `sqlite3`, `argon2`, and `sharp`).
-- **From npm:** package **`teamspark-pachinko`** (`npm install teamspark-pachinko`). The CLI binary name is **`pachinko`**.
+```bash
+npm install -g teamspark-pachinko
+```
 
-## Running the server
+Set a session secret (not required, but strongly advised if exposing to public internet):
 
-- **From a git checkout (development):** from the repo root, `npm run start:dev` (runs Next build then `tsx server.ts`). Default dev script uses port **3000**; adjust in `package.json` if needed.
-- **From a git checkout (production build):** `npm run build`, then `npm run start:prod` or `node dist/server.js`, or `./dist/pachinko` / `npm run start:server` (same bundled entry as `dist/pachinko`).
-- **After `npm install teamspark-pachinko`:** run **`pachinko`** or **`npx pachinko`** (same CLI flags as below). The published tarball only includes **`dist/`**; run **`npm run build`** before **`npm publish`** so `dist/` is populated.
+```bash
+export PACHINKO_SESSION_JWT_SECRET="$(openssl rand -base64 48)"
+```
 
-## Command-line options (`pachinko` / `dist/pachinko` / `node dist/server.js`)
+Start the server:
+
+```bash
+pachinko --port 3000
+```
+
+Open **http://localhost:3000/**. If this is a fresh install, create the admin account; otherwise sign in. 
+
+If this server is not publicly reachable from the Internet, you will need to use a tunnel such as ngrok to make this server's webhooks accessible to Arcade.dev.
+
+```
+ngrok http 3000
+```
+
+You can then set the provided public host in Pachinko **Settings** and it will show updated webhook callback URLs reachable through that host.
+
+Refer to the product **Help** tab for a step-by-step guide to connect to your Arcade.dev tenant.
+
+---
+
+## Command-line options
 
 | Option | Description |
 |--------|-------------|
-| `--port <n>` | Listen on TCP port `n` (1–65535). |
-| `--log-level <level>` | One of: `error`, `warn`, `info`, `debug`, `trace`. |
-| `--clean` | Delete the Pachinko **app data directory** (SQLite, logs, `api.json`, etc.) and **exit**. |
-| `--help`, `-h` | Print help and exit. |
+| **`--port <n>`** | Listen on TCP port `n` (1–65535). |
+| **`--log-level <level>`** | One of: `error`, `warn`, `info`, `debug`, `trace`. Overrides **`PACHINKO_LOG_LEVEL`** when both apply. |
+| **`--clean`** | Delete the Pachinko **app data directory** (SQLite, logs, `api.json`, etc.) and exit. |
+| **`--admin-reset`** | Delete all **`users`** for the **default tenant** and exit. **Stop the server first.** Afterward, **`/login`** offers creating the first admin again. Does not remove API keys or other data. |
+| **`--help`**, **`-h`** | Print help and exit. |
 
-From a **git checkout** you can also run **`npm run clean`** (same logic via `scripts/clean.ts`).
+If neither **`--port`** nor **`PACHINKO_PORT`** is set, the server uses **port 0** (the OS picks a free port). Read the startup log for the URL.
 
-If neither **`--port`** nor **`PACHINKO_PORT`** is set, the server uses **port 0** (OS assigns a free port); check logs for the URL. **`--log-level`** overrides **`PACHINKO_LOG_LEVEL`** when both are relevant.
+---
 
 ## Environment variables
 
-**`.env`** and **`.env.local`** in the **app root** are loaded first by **`loadEnv.ts`** (and **`next.config.js`** for Next). When running from **`dist/`**, that root is the **parent directory of `dist/`** (so a `.env` next to the installed `dist/` folder is picked up). **`.env.local`** overrides **`.env`** for duplicate keys. You can set the same names in the process environment (containers, systemd, etc.) instead of files.
+Set variables in your environment, or put **`.env`** and optionally **`.env.local`** in your **current working directory** (the folder you run **`pachinko`** from). **`.env.local`** overrides **`.env`** for the same key.
 
 | Variable | Role |
 |----------|------|
-| **`PACHINKO_SESSION_JWT_SECRET`** | Signs and verifies the **httpOnly** session cookie (**JWT**) for the web UI. **Not** a user password or tenant API key. **Strongly set in production**; if unset in development the app may use a fixed default with a warning — do not rely on that outside local use. |
-| **`PACHINKO_PORT`** | Default HTTP port (integer 1–65535). Ignored if **`--port`** is passed. |
-| **`PACHINKO_LOG_LEVEL`** | Server log level: `error`, `warn`, `info`, `debug`, `trace`. Default **`info`**. Ignored if **`--log-level`** is passed. |
-| **`NODE_ENV`** | Standard Node/Next flag (e.g. `production` vs `development`) — affects cookie **`Secure`**, DB driver verbosity, and similar behavior. |
+| **`PACHINKO_SESSION_JWT_SECRET`** | Signs and verifies the **httpOnly** session cookie (JWT) for the web UI. **Not** a user password or API key. Use a long random value in production. |
+| **`PACHINKO_PORT`** | Default HTTP port (1–65535). Ignored if **`--port`** is passed. |
+| **`PACHINKO_LOG_LEVEL`** | `error`, `warn`, `info`, `debug`, or `trace`. Default **`info`**. Ignored if **`--log-level`** is passed. |
+| **`NODE_ENV`** | Standard Node/Next value (e.g. `production` vs `development`) — affects cookie **`Secure`**, SQLite driver verbosity in development, and similar behavior. |
 
-See **`.env.example`** for a copy-paste template (including optional **`PACHINKO_PORT`** / **`PACHINKO_LOG_LEVEL`**).
+### Session secret (`PACHINKO_SESSION_JWT_SECRET`)
 
-### Session signing secret (`PACHINKO_SESSION_JWT_SECRET`) in more detail
-
-The web UI uses a signed, httpOnly session cookie. **`PACHINKO_SESSION_JWT_SECRET`** is **only** used to sign and verify that cookie.
-
-**Local files (repo root when developing from git)**
-
-1. Copy **`cp .env.example .env.local`** (or `.env`).
-2. Set a strong value, e.g. generate with:
+Generate a value (use either command, then set the output as the variable or paste it after `=` in `.env` — no quotes unless you want them in the secret):
 
 ```bash
 openssl rand -base64 48
@@ -61,16 +75,62 @@ openssl rand -base64 48
 node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
 ```
 
-3. Paste the **single line** of output as the value after `=` (no surrounding quotes in the file unless you intend quotes to be part of the secret).
+If **`PACHINKO_SESSION_JWT_SECRET`** is unset, the app may still start using a **development default** and log a warning (or a stronger log outside development). Do not rely on that outside quick local use.
 
-**Without a file**
+---
+
+## Development
+
+### Prerequisites
+
+- **Node.js 20+** and **npm**
+- **Git**
+- **macOS**, **Windows**, or **Linux** — native modules (**`sqlite3`**, **`argon2`**, **`sharp`**) may require a working build toolchain on your platform (e.g. Xcode CLI tools on macOS, **build-essential** on Debian).
+
+### Clone and install
 
 ```bash
-export PACHINKO_SESSION_JWT_SECRET="$(openssl rand -base64 48)"
+git clone https://github.com/TeamSparkAI/pachinko.git
+cd pachinko
+npm install
 ```
 
-Use your host’s usual mechanism (Docker `env_file`, Kubernetes Secrets, cloud app settings, CI secrets). **Do not commit** real `.env` / `.env.local` files.
+### Build and run
 
-### When the secret is unset (not recommended for production)
+Full distribution (Next.js production build + bundled `server.ts` → **`dist/`**):
 
-If **`PACHINKO_SESSION_JWT_SECRET`** is unset, the app may still start using a **development default** and log a warning (or stronger log outside development). Use that only for quick local experiments.
+```bash
+npm run build
+npm run start:prod
+```
+
+Same as **`node dist/server.js`** or **`./dist/pachinko`** after a successful build.
+
+**Iterating locally:** **`npm run start:dev`** runs **`build:next`** then **`tsx server.ts -- --port 3000`**.
+
+For **`start:dev`** only, **`.env`** / **`.env.local`** are read from the **repository root** (next to **`server.ts`**), not from cwd.
+
+### npm scripts
+
+| Script | Purpose |
+|--------|---------|
+| **`npm run build`** | Full **`dist/`** layout (Next standalone, static assets, `pachinko` binary, `appData`, `public`). |
+| **`npm run build:next`** | Next.js production build only. |
+| **`npm run build:bundle`** | esbuild **`server.ts`** → **`dist/server.js`**. |
+| **`npm run start:prod`** | **`node dist/server.js`**. |
+| **`npm run start:dev`** | Next build + **`tsx`** server on port **3000**. |
+| **`npm run start:server`** | **`./dist/pachinko`** (after **`npm run build`**). |
+| **`npm test`** | Jest unit tests. |
+| **`npm run test:watch`** / **`npm run test:coverage`** / **`npm run test:e2e`** | Test variants. |
+| **`npm run clean`** | Wipe Pachinko app data (same effect as **`pachinko --clean`**; uses **`tsx scripts/clean.ts`**). |
+| **`npm run load-sample-data`** | Load optional sample messages (development). |
+| **`npm run migrate`** | Standalone migration helper (**`lib/models/sqlite/runMigration.ts`**). |
+
+### Source code and issues
+
+- [github.com/TeamSparkAI/pachinko](https://github.com/TeamSparkAI/pachinko).
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+

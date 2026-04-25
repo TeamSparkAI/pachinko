@@ -108,6 +108,26 @@ export class DatabaseClient {
   }
 
   /**
+   * Like {@link transaction} but acquires a reserved DB lock immediately so concurrent
+   * writers block until this transaction completes (e.g. first-account registration).
+   */
+  async transactionImmediate<T>(callback: (db: DatabaseClient) => Promise<T>): Promise<T> {
+    try {
+      await this.db.run('BEGIN IMMEDIATE');
+      try {
+        const result = await callback(this);
+        await this.db.run('COMMIT');
+        return result;
+      } catch (error) {
+        await this.db.run('ROLLBACK');
+        throw error;
+      }
+    } catch (error) {
+      throw new DatabaseError('Transaction failed', error as Error);
+    }
+  }
+
+  /**
    * Close the database connection
    */
   async close(): Promise<void> {

@@ -31,22 +31,17 @@ More unit tests and integration tests
 
 ## Arcade
 
-## General
+### Test
 
 * Test rewrite of inputs (pre) and output (post) through webhooks
 * Test block (pre and post)
 
 ## Packaging
 
-* Publish / install as npm package (need package name)
+* Publish / install as npm package, validate install/run from npm
 
-## Install
+## Cloud / Hosted (later)
 
-* Collect user/pass/tenant on startup (maybe also CLI to update)
-* Streamline PACHINKO_SESSION_JWT_SECRET on install/setup
-
-## Cloud (later)
-
-* Choose cloud db, adapt/implement model
+* Choose cloud db (probably Postgres), adapt/implement model
 * Domain: pachinko.teamspark.ai
-* Google Cloud ALB deploy
+* Google Cloud ALB deploy (provision db, move static files to cdn, etc)

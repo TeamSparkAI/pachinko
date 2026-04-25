@@ -7,6 +7,7 @@ import next from 'next';
 import { ModelFactory } from '@/lib/models';
 import { getApiConfigPath } from '@/lib/utils/paths';
 import { removePachinkoAppData } from '@/lib/cleanAppData';
+import { resetDefaultTenantUsers } from '@/lib/resetDefaultTenantUsers';
 import { logger } from '@/lib/logging/server';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -35,6 +36,19 @@ async function handleCommands(): Promise<boolean> {
     process.exit(0);
   }
 
+  if (args.includes('--admin-reset')) {
+    try {
+      const removed = await resetDefaultTenantUsers();
+      console.log(
+        `Removed ${removed} user(s) for default tenant. Open /login to create a new admin account.`
+      );
+    } catch (error) {
+      console.error('❌ admin-reset failed:', error);
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
   return false;
 }
 
@@ -48,6 +62,7 @@ Options:
   --port <number>      Specify port to run on (default: auto-detect)
   --log-level <level>  Specify log level (error, warn, info, debug, trace)
   --clean              Delete Pachinko app data (DB, logs, api.json, etc.) and exit
+  --admin-reset        Delete all users for the default tenant and exit (stop server first)
   --help, -h           Show this help message
 
 Environment Variables:
@@ -59,6 +74,7 @@ Examples:
   pachinko --port 3000          # Run on port 3000
   pachinko --log-level debug    # Set log level to debug
   pachinko --clean              # Remove app data directory and exit
+  pachinko --admin-reset       # Remove default-tenant users; then use /login to create admin
 
 The server will automatically detect an available port if none is specified.
 
