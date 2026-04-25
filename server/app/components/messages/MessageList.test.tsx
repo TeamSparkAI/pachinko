@@ -1,7 +1,6 @@
 import { render, screen } from '@/test-utils';
 import { MessageList } from './MessageList';
 import { MessageListItemData } from '@/lib/models/types/message';
-import { Dimension, Dimensions } from '@/app/hooks/useDimensions';
 
 const mockMessages: MessageListItemData[] = [
   {
@@ -22,42 +21,6 @@ const mockMessages: MessageListItemData[] = [
 ];
 
 describe('MessageList', () => {
-  const dimensions: Dimensions = {
-    getLabel: (dimension: Dimension, value: string) => {
-      return value;
-    },
-    getValue: (dimension: Dimension, label: string) => {
-      return label;
-    },
-    getOptions: () => {
-      return [];
-    },
-    getValues: () => {
-      return [];
-    },
-    getLabels: () => {
-      return [];
-    },
-    getMap: () => {
-      return new Map();
-    },
-    getReverseMap: () => {
-      return new Map();
-    },
-    getLabelsForValues: () => {
-      return [];
-    },
-    getValuesForLabels: () => {
-      return [];
-    },
-    isValidValue: () => {
-      return true;
-    },
-    isValidLabel: () => {
-      return true;
-    }
-  };
-
   it('shows loading state when loading and no messages', () => {
     render(
       <MessageList
@@ -65,7 +28,6 @@ describe('MessageList', () => {
         isLoading={true}
         hasMore={false}
         onLoadMore={() => {}}
-        dimensions={dimensions}
       />
     );
 
@@ -79,7 +41,6 @@ describe('MessageList', () => {
         isLoading={false}
         hasMore={false}
         onLoadMore={() => {}}
-        dimensions={dimensions}
       />
     );
 
@@ -93,15 +54,27 @@ describe('MessageList', () => {
         isLoading={false}
         hasMore={false}
         onLoadMore={() => {}}
-        dimensions={dimensions}
       />
     );
 
-    expect(screen.getByText('test.method')).toBeInTheDocument();
+    expect(screen.getByText('user1')).toBeInTheDocument();
     expect(screen.getByText('test-tool')).toBeInTheDocument();
-    expect(screen.getByText('arcade')).toBeInTheDocument();
     expect(screen.getByText('test-toolkit')).toBeInTheDocument();
     expect(screen.getByText(/2\/20\/2024/)).toBeInTheDocument();
+  });
+
+  it('hides user ID column when userId is pinned in initialFilters', () => {
+    render(
+      <MessageList
+        messages={mockMessages}
+        isLoading={false}
+        hasMore={false}
+        onLoadMore={() => {}}
+        initialFilters={{ userId: 'user1' }}
+      />
+    );
+
+    expect(screen.queryByText('User ID')).not.toBeInTheDocument();
   });
 
   it('hides toolkit column when payloadToolkit is pinned in initialFilters', () => {
@@ -111,7 +84,6 @@ describe('MessageList', () => {
         isLoading={false}
         hasMore={false}
         onLoadMore={() => {}}
-        dimensions={dimensions}
         initialFilters={{ payloadToolkit: 'test-toolkit' }}
       />
     );
@@ -126,7 +98,6 @@ describe('MessageList', () => {
         isLoading={false}
         hasMore={true}
         onLoadMore={() => {}}
-        dimensions={dimensions}
       />
     );
 
@@ -141,7 +112,6 @@ describe('MessageList', () => {
         isLoading={false}
         hasMore={true}
         onLoadMore={handleLoadMore}
-        dimensions={dimensions}
       />
     );
 

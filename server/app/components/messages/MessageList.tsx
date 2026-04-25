@@ -1,5 +1,4 @@
 import { MessageListItemData, MessageFilter } from "@/lib/models/types/message";
-import { Dimensions, Dimension } from "@/app/hooks/useDimensions";
 import { useRouter } from "next/navigation";
 
 interface MessageListProps {
@@ -8,7 +7,12 @@ interface MessageListProps {
     hasMore: boolean;
     onLoadMore: () => void;
     initialFilters?: Partial<MessageFilter>;
-    dimensions: Dimensions;
+}
+
+/** Hide a list column only when this dimension is actively filtered (non-empty). Keys present with `undefined` do not hide. */
+function isPinnedFilter(filters: Partial<MessageFilter>, key: keyof MessageFilter): boolean {
+    const v = filters[key];
+    return v !== undefined && v !== null && v !== "";
 }
 
 export function MessageList({
@@ -17,7 +21,6 @@ export function MessageList({
     hasMore,
     onLoadMore,
     initialFilters = {},
-    dimensions,
 }: MessageListProps) {
     const router = useRouter();
 
@@ -33,25 +36,20 @@ export function MessageList({
         router.push(`/messages/${messageId}`);
     };
 
-    const sourceLabel = (source: string | null) => {
-        if (!source) return "—";
-        return dimensions.getLabel("source" as Dimension, source) || source;
-    };
-
     return (
         <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                     <tr>
-                        {!("source" in initialFilters) && (
+                        {!isPinnedFilter(initialFilters, "userId") && (
                             <th
                                 scope="col"
                                 className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                             >
-                                Source
+                                User ID
                             </th>
                         )}
-                        {!("payloadToolkit" in initialFilters) && (
+                        {!isPinnedFilter(initialFilters, "payloadToolkit") && (
                             <th
                                 scope="col"
                                 className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -59,15 +57,7 @@ export function MessageList({
                                 Toolkit
                             </th>
                         )}
-                        {!("payloadMethod" in initialFilters) && (
-                            <th
-                                scope="col"
-                                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            >
-                                Method
-                            </th>
-                        )}
-                        {!("payloadToolName" in initialFilters) && (
+                        {!isPinnedFilter(initialFilters, "payloadToolName") && (
                             <th
                                 scope="col"
                                 className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -96,22 +86,22 @@ export function MessageList({
                             onClick={() => navigateToMessage(message.messageId)}
                             className="hover:bg-gray-50 cursor-pointer"
                         >
-                            {!("source" in initialFilters) && (
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {sourceLabel(message.source)}
+                            {!isPinnedFilter(initialFilters, "userId") && (
+                                <td className="px-4 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                                    {message.userId || "—"}
                                 </td>
                             )}
-                            {!("payloadToolkit" in initialFilters) && (
+                            {!isPinnedFilter(initialFilters, "payloadToolkit") && (
                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                     {message.payloadToolkit || "—"}
                                 </td>
                             )}
-                            {!("payloadMethod" in initialFilters) && (
+                            {!isPinnedFilter(initialFilters, "payloadToolName") && (
                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                     <div className="flex items-center space-x-2">
                                         {message.hasError && (
                                             <svg
-                                                className="h-4 w-4 text-red-500"
+                                                className="h-4 w-4 text-red-500 flex-shrink-0"
                                                 fill="none"
                                                 stroke="currentColor"
                                                 viewBox="0 0 24 24"
@@ -124,13 +114,8 @@ export function MessageList({
                                                 />
                                             </svg>
                                         )}
-                                        <span>{message.payloadMethod || "-"}</span>
+                                        <span>{message.payloadToolName || "-"}</span>
                                     </div>
-                                </td>
-                            )}
-                            {!("payloadToolName" in initialFilters) && (
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {message.payloadToolName || "-"}
                                 </td>
                             )}
                             <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">

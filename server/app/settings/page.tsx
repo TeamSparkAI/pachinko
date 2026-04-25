@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { AppSettingsApiResponse, AppSettingsData } from '@/lib/models/types/appSettings';
-import EditAppSettingsModal from '@/app/components/EditAppSettingsModal';
+import EditArcadeHostModal from '@/app/components/EditArcadeHostModal';
+import EditRetentionSettingsModal from '@/app/components/EditRetentionSettingsModal';
 import { ApiKeysSection } from '@/app/components/ApiKeysSection';
 import { useModal } from '@/app/contexts/ModalContext';
 
@@ -36,37 +37,71 @@ export default function SettingsPage() {
     }
   };
 
-  const handleAppSettingsSave = async (settings: AppSettingsData) => {
+  const persistAppSettings = async (data: AppSettingsData) => {
+    const response = await fetch('/api/v1/appSettings', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to save app settings');
+    }
+
+    const refresh = await fetch('/api/v1/appSettings', { credentials: 'include' });
+    if (refresh.ok) {
+      setAppSettings((await refresh.json()) as AppSettingsApiResponse);
+    }
+    setModalContent(null);
+  };
+
+  const handleHostSave = async (externalBaseUrl: string) => {
+    if (!appSettings) return;
     try {
-      const response = await fetch('/api/v1/appSettings', {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(settings),
+      await persistAppSettings({
+        messageRetentionDays: appSettings.messageRetentionDays,
+        alertRetentionDays: appSettings.alertRetentionDays,
+        externalBaseUrl,
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to save app settings');
-      }
-
-      const refresh = await fetch('/api/v1/appSettings', { credentials: 'include' });
-      if (refresh.ok) {
-        setAppSettings((await refresh.json()) as AppSettingsApiResponse);
-      }
-      setModalContent(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save app settings');
     }
   };
 
-  const showAppModal = () => {
+  const handleRetentionSave = async (messageRetentionDays: number, alertRetentionDays: number) => {
+    if (!appSettings) return;
+    try {
+      await persistAppSettings({
+        messageRetentionDays,
+        alertRetentionDays,
+        externalBaseUrl: appSettings.externalBaseUrl ?? '',
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save app settings');
+    }
+  };
+
+  const showHostModal = () => {
     setModalContent(
       <div className="bg-white rounded-lg shadow-xl max-w-xl w-full mx-4 p-6">
-        <EditAppSettingsModal
+        <EditArcadeHostModal
           settings={appSettings ?? null}
-          onSave={handleAppSettingsSave}
+          onSave={handleHostSave}
+          onCancel={() => setModalContent(null)}
+        />
+      </div>
+    );
+  };
+
+  const showRetentionModal = () => {
+    setModalContent(
+      <div className="bg-white rounded-lg shadow-xl max-w-xl w-full mx-4 p-6">
+        <EditRetentionSettingsModal
+          settings={appSettings ?? null}
+          onSave={handleRetentionSave}
           onCancel={() => setModalContent(null)}
         />
       </div>
@@ -92,31 +127,23 @@ export default function SettingsPage() {
       <div className="flex flex-col gap-6 w-full">
         <div className="bg-white rounded-lg shadow p-6 w-full">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium text-gray-900">Application settings</h2>
+            <h2 className="text-lg font-medium text-gray-900">Arcade Webhooks</h2>
             <button
-              onClick={showAppModal}
+              type="button"
+              onClick={showHostModal}
               className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
             >
-              Edit
+              Edit Host
             </button>
           </div>
-          <div className="overflow-x-auto">
-            <div className="grid grid-cols-[max-content,1fr] gap-x-4 gap-y-2">
-              <div className="text-sm text-gray-600">Message retention (days)</div>
-              <div className="text-base text-gray-900 font-mono">{appSettings?.messageRetentionDays ?? '—'}</div>
-              <div className="text-sm text-gray-600">Alert retention (days)</div>
-              <div className="text-base text-gray-900 font-mono">{appSettings?.alertRetentionDays ?? '—'}</div>
-            </div>
+          <div className="pb-1 mb-4">
+            <img
+              src="/arcade-logo.png"
+              alt="Arcade"
+              className="h-9 w-auto max-w-[200px] object-contain object-left"
+            />
           </div>
-
-          <div className="mt-8 pt-6 border-t border-gray-200 space-y-3">
-            <div className="pb-1">
-              <img
-                src="/arcade-logo.png"
-                alt="Arcade"
-                className="h-9 w-auto max-w-[200px] object-contain object-left"
-              />
-            </div>
+          <div className="space-y-3">
             <div>
               <div className="text-sm text-gray-600 mb-1">Arcade pre-hook</div>
               <code className="block text-sm font-mono bg-gray-100 rounded p-2 break-all text-gray-900">
@@ -144,6 +171,27 @@ export default function SettingsPage() {
         <div className="bg-white rounded-lg shadow p-6 w-full">
           <h2 className="text-lg font-medium text-gray-900 mb-4">API keys</h2>
           <ApiKeysSection />
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6 w-full">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-medium text-gray-900">Application settings</h2>
+            <button
+              type="button"
+              onClick={showRetentionModal}
+              className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Edit
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <div className="grid grid-cols-[max-content,1fr] gap-x-4 gap-y-2">
+              <div className="text-sm text-gray-600">Message retention (days)</div>
+              <div className="text-base text-gray-900 font-mono">{appSettings?.messageRetentionDays ?? '—'}</div>
+              <div className="text-sm text-gray-600">Alert retention (days)</div>
+              <div className="text-base text-gray-900 font-mono">{appSettings?.alertRetentionDays ?? '—'}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

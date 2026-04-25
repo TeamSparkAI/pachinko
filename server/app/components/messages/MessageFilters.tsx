@@ -43,18 +43,18 @@ export function MessageFilters({
                     Search
                 </button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-                {!("source" in initialFilters) && (
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2">
+                {!("userId" in initialFilters) && (
                     <div>
-                        <label className="block text-sm text-gray-600 mb-1">Source</label>
+                        <label className="block text-sm text-gray-600 mb-1">User ID</label>
                         <select
-                            value={filters.source || ""}
-                            onChange={(e) => onFilterChange("source", e.target.value || undefined)}
+                            value={filters.userId || ""}
+                            onChange={(e) => onFilterChange("userId", e.target.value || undefined)}
                             className="w-full px-1.5 py-1 text-sm border rounded"
                         >
-                            <option value="">All sources</option>
+                            <option value="">All users</option>
                             {dimensions
-                                .getOptions("source")
+                                .getOptions("userId")
                                 .sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()))
                                 .map((opt) => (
                                     <option key={opt.value} value={opt.value}>
@@ -79,26 +79,6 @@ export function MessageFilters({
                                 .map((opt) => (
                                     <option key={opt.value} value={opt.value}>
                                         {opt.label}
-                                    </option>
-                                ))}
-                        </select>
-                    </div>
-                )}
-                {!("payloadMethod" in initialFilters) && (
-                    <div>
-                        <label className="block text-sm text-gray-600 mb-1">Method</label>
-                        <select
-                            value={filters.payloadMethod || ""}
-                            onChange={(e) => onFilterChange("payloadMethod", e.target.value || undefined)}
-                            className="w-full px-1.5 py-1 text-sm border rounded"
-                        >
-                            <option value="">All methods</option>
-                            {dimensions
-                                .getOptions("payloadMethod")
-                                .sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()))
-                                .map((method) => (
-                                    <option key={method.value} value={method.value}>
-                                        {method.label}
                                     </option>
                                 ))}
                         </select>

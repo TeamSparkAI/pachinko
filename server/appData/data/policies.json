@@ -3,7 +3,6 @@
         "name": "Cloud Account Secrets",
         "description": "Detect cloud provider access keys and secrets in messages",
         "origin": "either",
-        "methods": ["tools/call"],
         "conditions": [
             {
                 "class": "regex",
@@ -47,7 +46,6 @@
         "name": "GitHub Secrets",
         "description": "Detect GitHub tokens and secrets in messages",
         "origin": "either",
-        "methods": ["tools/call"],
         "conditions": [
             {
                 "class": "regex",
@@ -82,7 +80,6 @@
         "name": "Application Tokens",
         "description": "Detect application-specific tokens and webhooks in messages",
         "origin": "either",
-        "methods": ["tools/call"],
         "conditions": [
             {
                 "class": "regex",
@@ -109,7 +106,6 @@
         "name": "LLM API Keys",
         "description": "Detect LLM provider API keys in messages",
         "origin": "either",
-        "methods": ["tools/call"],
         "conditions": [
             {
                 "class": "regex",
@@ -152,7 +148,6 @@
         "name": "General Secrets",
         "description": "Detect various general secret formats in messages",
         "origin": "either",
-        "methods": ["tools/call"],
         "conditions": [
             {
                 "class": "regex",
@@ -203,7 +198,6 @@
         "name": "PII Detection",
         "description": "Detect personally identifiable information in messages",
         "origin": "either",
-        "methods": ["tools/call"],
         "conditions": [
             {
                 "class": "regex",
@@ -247,7 +241,6 @@
         "name": "Credit Card Numbers",
         "description": "Detect credit card numbers in messages",
         "origin": "either",
-        "methods": ["tools/call"],
         "conditions": [
             {
                 "class": "regex",
@@ -320,7 +313,6 @@
         "name": "Internal Network Details",
         "description": "Detect private IP addresses in messages",
         "origin": "either",
-        "methods": ["tools/call"],
         "conditions": [
             {
                 "class": "regex",
@@ -347,7 +339,6 @@
         "name": "UUID Detection",
         "description": "Detect UUIDs in messages",
         "origin": "either",
-        "methods": ["tools/call"],
         "conditions": [
             {
                 "class": "regex",

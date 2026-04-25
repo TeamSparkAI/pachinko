@@ -44,7 +44,6 @@ export interface MessageFilter {
     userId?: string;
     source?: string;
     payloadToolkit?: string;
-    payloadMethod?: string;
     payloadMessageId?: string;
     payloadToolName?: string;
     startTime?: string;

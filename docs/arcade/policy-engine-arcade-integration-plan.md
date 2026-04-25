@@ -17,7 +17,7 @@ This document describes how Pachinko applies **policies** when **Arcade Engine**
 | **Downstream** | **`alerts`**, **`message_actions`** on policy hits / actions |
 | **Return Error → Arcade** | **`PolicyActionError`** writes **`{ error: { message } }`** into synthetic JSON-RPC **`params`** (pre) or **`result`** (post). **`mapProcessedJsonRpcToArcadePreResult`** / **`mapProcessedJsonRpcToArcadePostResult`** map that (and top-level JSON-RPC **`error`**) to Arcade **`code: 'CHECK_FAILED'`** plus **`error_message`** from **`message`**. |
 | **Schema** | **`server/appData/migrations/001_initial_arcade.sql`** (Arcade-oriented messages columns, tenant-scoped tables) |
-| **Hook URLs in UI** | Settings shows pre/post paths; optional **public base URL** for copy/paste (`EditAppSettingsModal` / app settings) |
+| **Hook URLs in UI** | Settings → **Arcade Webhooks** shows pre/post paths; **Edit Host** sets optional **public base URL** (`EditArcadeHostModal`) |
 
 **Not implemented:** tenant-level **enable/disable** for pre vs post (both routes always run the full pipeline if called with valid auth). **Not implemented:** policy applicability filters on **tool name** or **toolkit** (see **Follow-up work**).
 

@@ -29,12 +29,11 @@ export function MessagesSection({
     const [totalMessages, setTotalMessages] = useState<number>(0);
 
     const fetchedDimensions = useDimensions({
-        dimensions: ["source", "payloadToolkit", "payloadMethod", "payloadToolName"],
+        dimensions: ["userId", "payloadToolkit", "payloadToolName"],
         autoFetch: true,
         filters: {
-            source: initialFilters.source,
+            userId: initialFilters.userId,
             payloadToolkit: initialFilters.payloadToolkit,
-            payloadMethod: initialFilters.payloadMethod,
             payloadToolName: initialFilters.payloadToolName,
         },
     }).dimensions;
@@ -87,12 +86,7 @@ export function MessagesSection({
     }, []);
 
     const handleFilterChange = (field: keyof MessageFilter, value: string | number | undefined) => {
-        const isDropdownChange = [
-            "source",
-            "payloadToolkit",
-            "payloadMethod",
-            "payloadToolName",
-        ].includes(field);
+        const isDropdownChange = ["userId", "payloadToolkit", "payloadToolName"].includes(field);
 
         const newPendingFilters = { ...pendingFilters, [field]: value };
 
@@ -201,7 +195,6 @@ export function MessagesSection({
                 isLoading={loading}
                 hasMore={hasMore}
                 onLoadMore={handleLoadMore}
-                dimensions={dimensions}
                 initialFilters={initialFilters}
             />
         </div>

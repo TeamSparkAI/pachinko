@@ -3,13 +3,13 @@ import { AlertData, AlertFilter, AlertPagination, AlertListResult, AlertReadData
 import { DatabaseClient, SqliteValue } from "./database";
 
 function appendMessageFilters(conditions: string[], params: SqliteValue[], filter: AlertFilter): void {
-    if (filter.source) {
-        conditions.push("m.source = ?");
-        params.push(filter.source);
-    }
     if (filter.payloadToolkit) {
         conditions.push("m.payloadToolkit = ?");
         params.push(filter.payloadToolkit);
+    }
+    if (filter.payloadToolName) {
+        conditions.push("m.payloadToolName = ?");
+        params.push(filter.payloadToolName);
     }
 }
 
@@ -26,7 +26,7 @@ export class SqliteAlertModel extends AlertModel {
     async findById(alertId: number): Promise<AlertReadData | null> {
         const result = await this.db.query<AlertReadData & { condition: string; findings: string }>(
             `SELECT a.*, p.severity as policySeverity,
-                    m.source as messageSource, m.payloadToolkit, m.payloadToolVersion
+                    m.payloadToolkit, m.payloadToolVersion, m.payloadToolName
              FROM alerts a
              JOIN policies p ON a.policyId = p.policyId
              JOIN messages m ON a.messageId = m.messageId
@@ -88,7 +88,7 @@ export class SqliteAlertModel extends AlertModel {
 
         const alerts = await this.db.query<AlertReadData & { condition: string; findings: string }>(
             `SELECT a.*, p.severity as policySeverity,
-                    m.source as messageSource, m.payloadToolkit, m.payloadToolVersion
+                    m.payloadToolkit, m.payloadToolVersion, m.payloadToolName
              FROM alerts a
              JOIN policies p ON a.policyId = p.policyId
              JOIN messages m ON a.messageId = m.messageId
@@ -214,8 +214,8 @@ export class SqliteAlertModel extends AlertModel {
         severity?: number;
         startTime?: string;
         endTime?: string;
-        source?: string;
         payloadToolkit?: string;
+        payloadToolName?: string;
     }): Promise<Array<{ timestamp: string; counts: Record<string, number> }>> {
         const conditions: string[] = ["a.tenantId = ?"];
         const queryParams: SqliteValue[] = [this.tenantId];
@@ -243,13 +243,13 @@ export class SqliteAlertModel extends AlertModel {
             conditions.push("a.timestamp <= ?");
             queryParams.push(params.endTime);
         }
-        if (params.source) {
-            conditions.push("m.source = ?");
-            queryParams.push(params.source);
-        }
         if (params.payloadToolkit) {
             conditions.push("m.payloadToolkit = ?");
             queryParams.push(params.payloadToolkit);
+        }
+        if (params.payloadToolName) {
+            conditions.push("m.payloadToolName = ?");
+            queryParams.push(params.payloadToolName);
         }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -286,11 +286,11 @@ export class SqliteAlertModel extends AlertModel {
             case "severity":
                 dimensionColumn = "p.severity";
                 break;
-            case "source":
-                dimensionColumn = "m.source";
-                break;
             case "payloadToolkit":
                 dimensionColumn = "m.payloadToolkit";
+                break;
+            case "payloadToolName":
+                dimensionColumn = "m.payloadToolName";
                 break;
             default:
                 dimensionColumn = params.dimension;
@@ -340,8 +340,8 @@ export class SqliteAlertModel extends AlertModel {
         severity?: number;
         startTime?: string;
         endTime?: string;
-        source?: string;
         payloadToolkit?: string;
+        payloadToolName?: string;
     }): Promise<Array<{ value: string; count: number }>> {
         const conditions: string[] = ["a.tenantId = ?"];
         const queryParams: SqliteValue[] = [this.tenantId];
@@ -369,13 +369,13 @@ export class SqliteAlertModel extends AlertModel {
             conditions.push("a.timestamp <= ?");
             queryParams.push(params.endTime);
         }
-        if (params.source) {
-            conditions.push("m.source = ?");
-            queryParams.push(params.source);
-        }
         if (params.payloadToolkit) {
             conditions.push("m.payloadToolkit = ?");
             queryParams.push(params.payloadToolkit);
+        }
+        if (params.payloadToolName) {
+            conditions.push("m.payloadToolName = ?");
+            queryParams.push(params.payloadToolName);
         }
 
         const whereClause = `WHERE ${conditions.join(" AND ")}`;
@@ -394,11 +394,11 @@ export class SqliteAlertModel extends AlertModel {
             case "severity":
                 dimensionColumn = "p.severity";
                 break;
-            case "source":
-                dimensionColumn = "m.source";
-                break;
             case "payloadToolkit":
                 dimensionColumn = "m.payloadToolkit";
+                break;
+            case "payloadToolName":
+                dimensionColumn = "m.payloadToolName";
                 break;
             default:
                 dimensionColumn = params.dimension;
@@ -431,8 +431,8 @@ export class SqliteAlertModel extends AlertModel {
         seen?: boolean;
         startTime?: string;
         endTime?: string;
-        source?: string;
         payloadToolkit?: string;
+        payloadToolName?: string;
     }): Promise<Record<string, string[]>> {
         const conditions: string[] = ["a.tenantId = ?"];
         const queryParams: SqliteValue[] = [this.tenantId];
@@ -457,13 +457,13 @@ export class SqliteAlertModel extends AlertModel {
             conditions.push("a.createdAt <= ?");
             queryParams.push(params.endTime);
         }
-        if (params.source) {
-            conditions.push("m.source = ?");
-            queryParams.push(params.source);
-        }
         if (params.payloadToolkit) {
             conditions.push("m.payloadToolkit = ?");
             queryParams.push(params.payloadToolkit);
+        }
+        if (params.payloadToolName) {
+            conditions.push("m.payloadToolName = ?");
+            queryParams.push(params.payloadToolName);
         }
 
         const whereClause = `WHERE ${conditions.join(" AND ")}`;
@@ -484,11 +484,11 @@ export class SqliteAlertModel extends AlertModel {
                 case "severity":
                     dimensionColumn = "p.severity";
                     break;
-                case "source":
-                    dimensionColumn = "m.source";
-                    break;
                 case "payloadToolkit":
                     dimensionColumn = "m.payloadToolkit";
+                    break;
+                case "payloadToolName":
+                    dimensionColumn = "m.payloadToolName";
                     break;
                 default:
                     dimensionColumn = dimension;

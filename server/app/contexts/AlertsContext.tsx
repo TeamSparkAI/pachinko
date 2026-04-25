@@ -25,7 +25,7 @@ interface UnseenAlertsState {
 interface AlertsContextType {
   unseenAlerts: UnseenAlertsState;
   refreshUnseenAlerts: () => Promise<void>;
-  getUnseenAlertsCount: (filters: { source?: string; payloadToolkit?: string; policyId?: number }) => Promise<number>;
+  getUnseenAlertsCount: (filters: { payloadToolkit?: string; payloadToolName?: string; policyId?: number }) => Promise<number>;
   refreshCounter: number;
 }
 
@@ -79,14 +79,14 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const getUnseenAlertsCount = useCallback(async (filters: { source?: string; payloadToolkit?: string; policyId?: number }) => {
+  const getUnseenAlertsCount = useCallback(async (filters: { payloadToolkit?: string; payloadToolName?: string; policyId?: number }) => {
     try {
       const params = new URLSearchParams();
       params.append('dimension', 'severity');
       params.append('seen', 'false');
 
-      if (filters.source) params.append('source', filters.source);
       if (filters.payloadToolkit) params.append('payloadToolkit', filters.payloadToolkit);
+      if (filters.payloadToolName) params.append('payloadToolName', filters.payloadToolName);
       if (filters.policyId) params.append('policyId', filters.policyId.toString());
 
       const response = await fetch(`/api/v1/analytics/alerts/aggregate?${params.toString()}`);

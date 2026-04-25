@@ -17,9 +17,9 @@ export interface AlertData {
 
 export interface AlertReadData extends AlertData {
     policySeverity: number;
-    messageSource: string | null;
     payloadToolkit: string;
     payloadToolVersion: string;
+    payloadToolName: string;
 }
 
 export interface AlertFilter {
@@ -30,8 +30,8 @@ export interface AlertFilter {
     severity?: number;
     startTime?: string;
     endTime?: string;
-    source?: string;
     payloadToolkit?: string;
+    payloadToolName?: string;
 }
 
 export interface AlertPagination {

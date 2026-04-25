@@ -1,12 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useLayout } from '@/app/contexts/LayoutContext';
 import { DashboardChart } from '@/app/components/dashboard/DashboardChart';
 import { NewAlertsSummary } from '@/app/components/alerts/NewAlertsSummary';
 import { useDimensions } from '@/app/hooks/useDimensions';
 import { useRouter } from 'next/navigation';
 import { useAlerts } from '@/app/contexts/AlertsContext';
+import type { AppSettingsApiResponse } from '@/lib/models/types/appSettings';
+
+const ARCADE_PRE_PATH = '/api/v1/webhooks/arcade/pre';
+const ARCADE_POST_PATH = '/api/v1/webhooks/arcade/post';
 
 interface DashboardStats {
   policies: {
@@ -17,8 +22,9 @@ interface DashboardStats {
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
-    policies: { total: 0, alerts: 0 }
+    policies: { total: 0, alerts: 0 },
   });
+  const [appSettings, setAppSettings] = useState<AppSettingsApiResponse | null>(null);
   const { setHeaderTitle } = useLayout();
   const { dimensions } = useDimensions({
     dimensions: ['payloadToolkit', 'policyId']
@@ -59,7 +65,7 @@ export default function DashboardPage() {
       let totalPolicies = 0;
       let totalAlerts = 0;
       try {
-        const policiesRes = await fetch('/api/v1/policies');
+        const policiesRes = await fetch('/api/v1/policies', { credentials: 'include' });
         if (policiesRes.status === 404) {
           totalPolicies = 0;
           totalAlerts = 0;
@@ -73,15 +79,28 @@ export default function DashboardPage() {
           );
         }
         setStats({
-          policies: { total: totalPolicies, alerts: totalAlerts }
+          policies: { total: totalPolicies, alerts: totalAlerts },
         });
       } catch {
         setStats({
-          policies: { total: 0, alerts: 0 }
+          policies: { total: 0, alerts: 0 },
         });
       }
     }
+
+    async function fetchAppSettings() {
+      try {
+        const res = await fetch('/api/v1/appSettings', { credentials: 'include' });
+        if (res.ok) {
+          setAppSettings((await res.json()) as AppSettingsApiResponse);
+        }
+      } catch {
+        setAppSettings(null);
+      }
+    }
+
     fetchStats();
+    fetchAppSettings();
   }, []);
 
   return (
@@ -91,24 +110,6 @@ export default function DashboardPage() {
       <AlertsStatus />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div
-          className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => router.push('/messages')}
-        >
-          <div className="flex justify-between items-center">
-            <h3 className="text-xl font-semibold text-gray-900 flex-1">Messages</h3>
-            <a
-              href="/messages"
-              className="text-blue-500 text-sm hover:underline ml-2"
-              onClick={(e) => e.stopPropagation()}
-            >
-              Open
-            </a>
-          </div>
-          <p className="mt-2 text-sm text-gray-600">
-            Review ingested MCP traffic by toolkit and source.
-          </p>
-        </div>
         <div
           className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-md transition-shadow"
           onClick={() => router.push('/policies')}
@@ -130,6 +131,36 @@ export default function DashboardPage() {
               {stats.policies.alerts > 0 && (
                 <span className="text-xs text-red-500 mt-1">{stats.policies.alerts} unread alerts</span>
               )}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-xl font-semibold text-gray-900 flex-1">Arcade Webhooks</h3>
+            <Link href="/settings" className="text-blue-500 text-sm hover:underline ml-2 shrink-0">
+              Settings
+            </Link>
+          </div>
+          <p className="text-sm text-gray-600 mb-3">
+            Pre- and post-execution URLs for Arcade Engine. Configure under Settings.
+          </p>
+          <div className="space-y-2">
+            <div>
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pre-hook</div>
+              <code className="mt-0.5 block text-xs font-mono bg-gray-100 rounded p-2 break-all text-gray-900">
+                {appSettings?.resolvedPublicBaseUrl
+                  ? `${appSettings.resolvedPublicBaseUrl}${ARCADE_PRE_PATH}`
+                  : '—'}
+              </code>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Post-hook</div>
+              <code className="mt-0.5 block text-xs font-mono bg-gray-100 rounded p-2 break-all text-gray-900">
+                {appSettings?.resolvedPublicBaseUrl
+                  ? `${appSettings.resolvedPublicBaseUrl}${ARCADE_POST_PATH}`
+                  : '—'}
+              </code>
             </div>
           </div>
         </div>

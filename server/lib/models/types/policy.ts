@@ -23,7 +23,10 @@ export interface PolicyData {
     description?: string;
     severity: number;
     origin: 'client' | 'server' | 'either';
-    methods?: string[];
+    /** When set, policy applies only when message payloadToolkit equals this string (exact). */
+    matchToolkit?: string;
+    /** When set, policy applies only when message payloadToolName equals this string (exact). */
+    matchTool?: string;
     conditions: PolicyCondition[];
     actions: PolicyAction[];
     enabled: boolean;

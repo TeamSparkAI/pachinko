@@ -1622,10 +1622,10 @@ paths:
         - name: endTime
           in: query
           schema: { type: string, format: date-time }
-        - name: source
+        - name: payloadToolkit
           in: query
           schema: { type: string }
-        - name: payloadToolkit
+        - name: payloadToolName
           in: query
           schema: { type: string }
       responses:
@@ -1713,8 +1713,8 @@ paths:
                 severity: { type: integer }
                 startTime: { type: string, format: date-time }
                 endTime: { type: string, format: date-time }
-                source: { type: string }
                 payloadToolkit: { type: string }
+                payloadToolName: { type: string }
       responses:
         "200":
           content:
@@ -1741,7 +1741,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [policyId, conditionName, seen, severity, source, payloadToolkit]
+            enum: [policyId, conditionName, seen, severity, payloadToolkit, payloadToolName]
         - name: timeUnit
           in: query
           required: true
@@ -1764,10 +1764,10 @@ paths:
         - name: endTime
           in: query
           schema: { type: string, format: date-time }
-        - name: source
+        - name: payloadToolkit
           in: query
           schema: { type: string }
-        - name: payloadToolkit
+        - name: payloadToolName
           in: query
           schema: { type: string }
       responses:
@@ -1796,7 +1796,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [policyId, conditionName, seen, severity, source, payloadToolkit]
+            enum: [policyId, conditionName, seen, severity, payloadToolkit, payloadToolName]
         - name: policyId
           in: query
           schema: { type: integer }
@@ -1815,10 +1815,10 @@ paths:
         - name: endTime
           in: query
           schema: { type: string, format: date-time }
-        - name: source
+        - name: payloadToolkit
           in: query
           schema: { type: string }
-        - name: payloadToolkit
+        - name: payloadToolName
           in: query
           schema: { type: string }
       responses:

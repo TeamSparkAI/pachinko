@@ -2,6 +2,18 @@ import { DatabaseClient } from './database';
 import { PolicyModel } from '../policy';
 import { PolicyData } from '../types/policy';
 
+type PolicyRow = PolicyData & { conditions: string; actions: string };
+
+function rowToPolicy(policy: PolicyRow): PolicyData {
+    return {
+        ...policy,
+        matchToolkit: policy.matchToolkit ?? undefined,
+        matchTool: policy.matchTool ?? undefined,
+        conditions: policy.conditions ? JSON.parse(policy.conditions) : [],
+        actions: policy.actions ? JSON.parse(policy.actions) : [],
+    };
+}
+
 export class SqlitePolicyModel extends PolicyModel {
     private db: DatabaseClient;
     private readonly tenantId: number;
@@ -13,69 +25,52 @@ export class SqlitePolicyModel extends PolicyModel {
     }
 
     async findById(policyId: number): Promise<PolicyData | null> {
-        const result = await this.db.query<PolicyData & { methods: string; conditions: string; actions: string }>(
+        const result = await this.db.query<PolicyRow>(
             'SELECT * FROM policies WHERE policyId = ? AND tenantId = ?',
             [policyId, this.tenantId]
         );
         if (!result.rows[0]) return null;
 
-        // Deserialize JSON fields
-        const policy = result.rows[0];
-        return {
-            ...policy,
-            methods: policy.methods ? JSON.parse(policy.methods) : undefined,
-            conditions: policy.conditions ? JSON.parse(policy.conditions) : [],
-            actions: policy.actions ? JSON.parse(policy.actions) : []
-        };
+        return rowToPolicy(result.rows[0]);
     }
 
     async list(): Promise<PolicyData[]> {
-        const result = await this.db.query<PolicyData & { methods: string; conditions: string; actions: string }>(
+        const result = await this.db.query<PolicyRow>(
             'SELECT * FROM policies WHERE tenantId = ? ORDER BY name',
             [this.tenantId]
         );
 
-        // Deserialize JSON fields
-        return result.rows.map(policy => ({
-            ...policy,
-            methods: policy.methods ? JSON.parse(policy.methods) : undefined,
-            conditions: policy.conditions ? JSON.parse(policy.conditions) : [],
-            actions: policy.actions ? JSON.parse(policy.actions) : []
-        }));
+        return result.rows.map((policy) => rowToPolicy(policy));
     }
 
     async getByIds(policyIds: number[]): Promise<PolicyData[]> {
         if (policyIds.length === 0) return [];
-        
+
         const placeholders = policyIds.map(() => '?').join(',');
-        const result = await this.db.query<PolicyData & { methods: string; conditions: string; actions: string }>(
+        const result = await this.db.query<PolicyRow>(
             `SELECT * FROM policies WHERE tenantId = ? AND policyId IN (${placeholders}) ORDER BY name`,
             [this.tenantId, ...policyIds]
         );
 
-        return result.rows.map(policy => ({
-            ...policy,
-            methods: policy.methods ? JSON.parse(policy.methods) : undefined,
-            conditions: policy.conditions ? JSON.parse(policy.conditions) : [],
-            actions: policy.actions ? JSON.parse(policy.actions) : []
-        }));
+        return result.rows.map((policy) => rowToPolicy(policy));
     }
 
     async create(data: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt' | 'tenantId'>): Promise<PolicyData> {
         await this.db.execute(
             `INSERT INTO policies (
-                tenantId, name, description, severity, origin, methods, conditions, actions, enabled
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                tenantId, name, description, severity, origin, matchToolkit, matchTool, conditions, actions, enabled
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 this.tenantId,
                 data.name,
                 data.description || null,
                 data.severity,
                 data.origin,
-                data.methods ? JSON.stringify(data.methods) : null,
+                data.matchToolkit?.trim() || null,
+                data.matchTool?.trim() || null,
                 data.conditions ? JSON.stringify(data.conditions) : null,
                 data.actions ? JSON.stringify(data.actions) : null,
-                data.enabled ? 1 : 0
+                data.enabled ? 1 : 0,
             ]
         );
 
@@ -93,10 +88,7 @@ export class SqlitePolicyModel extends PolicyModel {
 
         Object.entries(data).forEach(([key, value]) => {
             if (key === 'policyId' || key === 'createdAt' || key === 'updatedAt') return;
-            if (key === 'methods') {
-                updates.push(`${key} = ?`);
-                params.push(value ? JSON.stringify(value) : null);
-            } else if (key === 'conditions') {
+            if (key === 'conditions') {
                 updates.push(`${key} = ?`);
                 params.push(value ? JSON.stringify(value) : null);
             } else if (key === 'actions') {
@@ -105,6 +97,10 @@ export class SqlitePolicyModel extends PolicyModel {
             } else if (key === 'enabled') {
                 updates.push(`${key} = ?`);
                 params.push(value ? 1 : 0);
+            } else if (key === 'matchToolkit' || key === 'matchTool') {
+                updates.push(`${key} = ?`);
+                const s = typeof value === 'string' ? value.trim() : '';
+                params.push(s || null);
             } else {
                 updates.push(`${key} = ?`);
                 params.push(value);
@@ -130,4 +126,4 @@ export class SqlitePolicyModel extends PolicyModel {
         ]);
         return result.changes > 0;
     }
-} 
+}

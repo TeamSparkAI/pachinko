@@ -1,7 +1,6 @@
 import React from 'react';
 import { PolicyData } from '@/lib/models/types/policy';
 import { getSeverityLevel } from '@/lib/severity';
-import { getMcpMethod } from '@/lib/types/mcpMethod';
 import { ConditionDisplay } from './ConditionDisplay';
 import { ActionDisplay } from './ActionDisplay';
 
@@ -37,26 +36,23 @@ export function PolicyDetailsTab({ policy }: PolicyDetailsTabProps) {
             </dd>
           </div>
           <div className="bg-white even:bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-[120px_1fr] sm:gap-4 sm:px-6">
-            <dt className="text-sm font-medium text-gray-500">Methods</dt>
+            <dt className="text-sm font-medium text-gray-500">Toolkit / tool</dt>
             <dd className="mt-1 text-sm text-gray-900 sm:mt-0">
-              {policy.methods && policy.methods.length > 0 ? (
-                <div className="space-y-2">
-                  {policy.methods.map((method, index) => {
-                    const methodInfo = getMcpMethod(method);
-                    return (
-                      <div key={index} className="flex items-baseline">
-                        <div className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs mr-3 min-w-[120px]">
-                          {method}
-                        </div>
-                        <div className="text-xs text-gray-500 flex-1">
-                          {methodInfo ? methodInfo.description : '[Custom]'}
-                        </div>
-                      </div>
-                    );
-                  })}
+              {policy.matchToolkit?.trim() || policy.matchTool?.trim() ? (
+                <div className="space-y-1 font-mono text-xs">
+                  {policy.matchToolkit?.trim() ? (
+                    <div>
+                      <span className="text-gray-500">Toolkit:</span> {policy.matchToolkit.trim()}
+                    </div>
+                  ) : null}
+                  {policy.matchTool?.trim() ? (
+                    <div>
+                      <span className="text-gray-500">Tool:</span> {policy.matchTool.trim()}
+                    </div>
+                  ) : null}
                 </div>
               ) : (
-                <span className="text-gray-500">All Methods</span>
+                <span className="text-gray-500">All toolkits and tools</span>
               )}
             </dd>
           </div>

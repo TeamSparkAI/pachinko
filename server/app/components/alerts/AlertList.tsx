@@ -72,20 +72,20 @@ export function AlertList({
                                 Condition
                             </th>
                         )}
-                        {!("source" in initialFilters) && (
-                            <th
-                                scope="col"
-                                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            >
-                                Source
-                            </th>
-                        )}
                         {!("payloadToolkit" in initialFilters) && (
                             <th
                                 scope="col"
                                 className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                             >
                                 Toolkit
+                            </th>
+                        )}
+                        {!("payloadToolName" in initialFilters) && (
+                            <th
+                                scope="col"
+                                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                            >
+                                Tool
                             </th>
                         )}
                         <th
@@ -132,16 +132,14 @@ export function AlertList({
                                         {alert.condition.name}
                                     </td>
                                 )}
-                                {!("source" in initialFilters) && (
-                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {alert.messageSource
-                                            ? getDimensionLabel("source", alert.messageSource)
-                                            : "—"}
-                                    </td>
-                                )}
                                 {!("payloadToolkit" in initialFilters) && (
                                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                         {alert.payloadToolkit || "—"}
+                                    </td>
+                                )}
+                                {!("payloadToolName" in initialFilters) && (
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {alert.payloadToolName || "—"}
                                     </td>
                                 )}
                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">

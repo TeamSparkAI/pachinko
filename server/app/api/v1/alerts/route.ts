@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
             severity: url.searchParams.get("severity") ? Number(url.searchParams.get("severity")) : undefined,
             startTime: url.searchParams.get("startTime") || undefined,
             endTime: url.searchParams.get("endTime") || undefined,
-            source: url.searchParams.get("source") || undefined,
             payloadToolkit: url.searchParams.get("payloadToolkit") || undefined,
+            payloadToolName: url.searchParams.get("payloadToolName") || undefined,
         };
 
         const result = await alertModel.list(filter, { sort, limit, cursor });

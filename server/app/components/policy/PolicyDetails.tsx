@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { getSeverityOptions } from '@/lib/severity';
 import { PolicyData, PolicyCondition, PolicyAction } from '@/lib/models/types/policy';
 import { useDialog } from '@/app/hooks/useDialog';
 import { useNavigationGuard } from '@/app/hooks/useNavigationGuard';
-import { MCP_METHODS_BY_CATEGORY, getMcpMethodCategories } from '@/lib/types/mcpMethod';
+import { useDimensions } from '@/app/hooks/useDimensions';
 import { ConditionEditor } from './ConditionEditor';
 import { ActionEditor } from './ActionEditor';
 import { AddConditionDialog, AddActionDialog } from './AddElementDialog';
@@ -27,13 +26,16 @@ export function PolicyDetails({
   onCancel,
   isNewPolicy = false 
 }: PolicyDetailsProps) {
-  const router = useRouter();
   const [editedPolicy, setEditedPolicy] = useState(policy);
   const [showValidationAlert, setShowValidationAlert] = useState(false);
   const [showAddConditionDialog, setShowAddConditionDialog] = useState(false);
   const [showAddActionDialog, setShowAddActionDialog] = useState(false);
   const { confirm } = useDialog();
   const [error, setError] = useState<string | null>(null);
+  const { dimensions: dimData } = useDimensions({
+    dimensions: ['payloadToolkit', 'payloadToolName'],
+    autoFetch: true,
+  });
 
   useEffect(() => {
     setEditedPolicy(policy);
@@ -284,81 +286,67 @@ export function PolicyDetails({
             </dd>
           </div>
           <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-[120px_1fr] sm:gap-4 sm:px-6">
-            <dt className="text-sm font-medium text-gray-500">Methods</dt>
+            <dt className="text-sm font-medium text-gray-500">Toolkit</dt>
             <dd className="mt-1 text-sm text-gray-900 sm:mt-0">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Selected Methods</label>
-                  <div className="mt-1 space-y-2">
-                    {editedPolicy.methods?.map((method, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={method}
-                          onChange={(e) => {
-                            const newMethods = [...(editedPolicy.methods || [])];
-                            newMethods[index] = e.target.value;
-                            setEditedPolicy({ ...editedPolicy, methods: newMethods });
-                          }}
-                          className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                          placeholder="Enter method name"
-                        />
-                        <button
-                          onClick={() => {
-                            const newMethods = editedPolicy.methods?.filter((_, i) => i !== index) || [];
-                            setEditedPolicy({ ...editedPolicy, methods: newMethods });
-                          }}
-                          className="p-1 text-red-600 hover:text-red-800"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                    <div className="flex gap-2">
-                      <div className="relative">
-                        <select
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              const newMethods = [...(editedPolicy.methods || []), e.target.value];
-                              setEditedPolicy({ ...editedPolicy, methods: newMethods });
-                              e.target.value = '';
-                            }
-                          }}
-                          className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                        >
-                          <option value="">Add MCP Method...</option>
-                          {getMcpMethodCategories().map(category => (
-                            <optgroup key={category} label={category}>
-                              {MCP_METHODS_BY_CATEGORY[category].map(method => (
-                                <option key={method.value} value={method.value}>
-                                  {method.value}
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const newMethods = [...(editedPolicy.methods || []), ''];
-                          setEditedPolicy({ ...editedPolicy, methods: newMethods });
-                        }}
-                        className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        <svg className="-ml-0.5 mr-1 h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-                        </svg>
-                        Add Custom Method
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-xs text-gray-500">
-                  Leave empty or remove all methods to apply to all methods. Use the dropdown to add common MCP methods.
-                </div>
-              </div>
+              <label className="block text-sm font-medium text-gray-700">Match toolkit (exact)</label>
+              <input
+                type="text"
+                list="policy-editor-toolkit-suggestions"
+                value={editedPolicy.matchToolkit ?? ''}
+                onChange={(e) =>
+                  setEditedPolicy({
+                    ...editedPolicy,
+                    matchToolkit: e.target.value || undefined,
+                  })
+                }
+                className="mt-1 block w-full max-w-xl rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                placeholder="Any toolkit"
+                autoComplete="off"
+              />
+              <datalist id="policy-editor-toolkit-suggestions">
+                {dimData
+                  .getOptions('payloadToolkit')
+                  .sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()))
+                  .map((opt) => (
+                    <option key={opt.value} value={opt.value} label={opt.label} />
+                  ))}
+              </datalist>
+              <p className="mt-1 text-xs text-gray-500">
+                Optional. Leave blank to apply to all toolkits. Suggestions come from messages in this tenant; you can
+                type any exact value.
+              </p>
+            </dd>
+          </div>
+          <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-[120px_1fr] sm:gap-4 sm:px-6">
+            <dt className="text-sm font-medium text-gray-500">Tool</dt>
+            <dd className="mt-1 text-sm text-gray-900 sm:mt-0">
+              <label className="block text-sm font-medium text-gray-700">Match tool name (exact)</label>
+              <input
+                type="text"
+                list="policy-editor-tool-suggestions"
+                value={editedPolicy.matchTool ?? ''}
+                onChange={(e) =>
+                  setEditedPolicy({
+                    ...editedPolicy,
+                    matchTool: e.target.value || undefined,
+                  })
+                }
+                className="mt-1 block w-full max-w-xl rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                placeholder="Any tool"
+                autoComplete="off"
+              />
+              <datalist id="policy-editor-tool-suggestions">
+                {dimData
+                  .getOptions('payloadToolName')
+                  .sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()))
+                  .map((opt) => (
+                    <option key={opt.value} value={opt.value} label={opt.label} />
+                  ))}
+              </datalist>
+              <p className="mt-1 text-xs text-gray-500">
+                Optional. Leave blank to apply to all tools. Suggestions come from messages in this tenant; you can type
+                any exact value.
+              </p>
             </dd>
           </div>
           <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-[120px_1fr] sm:gap-4 sm:px-6">

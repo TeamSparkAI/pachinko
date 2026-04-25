@@ -32,11 +32,11 @@ function AlertsPageContent() {
     const seen = searchParams.get('seen');
     if (seen) urlFilters.seen = seen === 'true';
     
-    const source = searchParams.get('source');
-    if (source) urlFilters.source = source;
-
     const payloadToolkit = searchParams.get('payloadToolkit');
     if (payloadToolkit) urlFilters.payloadToolkit = payloadToolkit;
+
+    const payloadToolName = searchParams.get('payloadToolName');
+    if (payloadToolName) urlFilters.payloadToolName = payloadToolName;
 
     const conditionName = searchParams.get('conditionName');
     if (conditionName) urlFilters.conditionName = conditionName;
@@ -54,7 +54,7 @@ function AlertsPageContent() {
   const [totalAlerts, setTotalAlerts] = useState<number>(0);
   const [filtersInitialized, setFiltersInitialized] = useState(Object.keys(initialFilters).length > 0);
   const { dimensions, isLoading: dimensionsLoading, error: dimensionsError } = useDimensions({
-    dimensions: ['policyId', 'conditionName', 'severity', 'seen', 'source', 'payloadToolkit']
+    dimensions: ['policyId', 'conditionName', 'severity', 'seen', 'payloadToolkit', 'payloadToolName']
   });
 
   // Update filters when searchParams change
@@ -75,8 +75,8 @@ function AlertsPageContent() {
     if (newFilters.severity !== undefined) params.set('severity', newFilters.severity.toString());
     if (newFilters.policyId !== undefined) params.set('policyId', newFilters.policyId.toString());
     if (newFilters.seen !== undefined) params.set('seen', newFilters.seen.toString());
-    if (newFilters.source !== undefined) params.set('source', newFilters.source);
     if (newFilters.payloadToolkit !== undefined) params.set('payloadToolkit', newFilters.payloadToolkit);
+    if (newFilters.payloadToolName !== undefined) params.set('payloadToolName', newFilters.payloadToolName);
     if (newFilters.conditionName !== undefined) params.set('conditionName', newFilters.conditionName);
     
     const newURL = params.toString() ? `?${params.toString()}` : '';
@@ -99,8 +99,8 @@ function AlertsPageContent() {
       if (filters.conditionName !== undefined) queryParams.set('conditionName', filters.conditionName);
       if (filters.seen !== undefined) queryParams.set('seen', filters.seen.toString());
       if (filters.severity !== undefined) queryParams.set('severity', filters.severity.toString());
-      if (filters.source !== undefined) queryParams.set('source', filters.source);
       if (filters.payloadToolkit !== undefined) queryParams.set('payloadToolkit', filters.payloadToolkit);
+      if (filters.payloadToolName !== undefined) queryParams.set('payloadToolName', filters.payloadToolName);
 
       // Add cursor if provided
       if (nextCursor) {

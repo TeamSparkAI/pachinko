@@ -16,9 +16,8 @@ function MessagesPageContent() {
   // Initialize filters from URL parameters synchronously
   const getInitialFilters = (): MessageFilter => {
     return {
-      source: searchParams.get('source') || undefined,
+      userId: searchParams.get('userId') || undefined,
       payloadToolkit: searchParams.get('payloadToolkit') || undefined,
-      payloadMethod: searchParams.get('payloadMethod') || undefined,
       payloadToolName: searchParams.get('payloadToolName') || undefined,
     };
   };
@@ -39,7 +38,7 @@ function MessagesPageContent() {
     Object.values(initialFilters).some((v) => v !== undefined && v !== '')
   );
   const { dimensions, isLoading: dimensionsLoading, error: dimensionsError } = useDimensions({
-    dimensions: ['source', 'payloadToolkit', 'payloadMethod', 'payloadToolName']
+    dimensions: ['userId', 'payloadToolkit', 'payloadToolName'],
   });
 
   // Update filters when searchParams change
@@ -53,9 +52,8 @@ function MessagesPageContent() {
   const updateURL = (newFilters: MessageFilter) => {
     const params = new URLSearchParams();
     
-    if (newFilters.source) params.set('source', newFilters.source);
+    if (newFilters.userId) params.set('userId', newFilters.userId);
     if (newFilters.payloadToolkit) params.set('payloadToolkit', newFilters.payloadToolkit);
-    if (newFilters.payloadMethod) params.set('payloadMethod', newFilters.payloadMethod);
     if (newFilters.payloadToolName) params.set('payloadToolName', newFilters.payloadToolName);
     
     const newURL = params.toString() ? `?${params.toString()}` : '';
@@ -125,8 +123,7 @@ function MessagesPageContent() {
   const handleFilterChange = (field: keyof MessageFilter, value: string | number | undefined) => {
     log.debug('Filter change:', { field, value });
     
-    // Check if this is a dropdown change (serverName, payloadMethod, toolName, clientId, sourceIP)
-    const isDropdownChange = ['source', 'payloadToolkit', 'payloadMethod', 'payloadToolName'].includes(field);
+    const isDropdownChange = ['userId', 'payloadToolkit', 'payloadToolName'].includes(field);
     
     // Create new pending filters with the change
     const newPendingFilters = { ...pendingFilters, [field]: value };
@@ -241,7 +238,6 @@ function MessagesPageContent() {
           isLoading={loading}
           hasMore={hasMore}
           onLoadMore={handleLoadMore}
-          dimensions={dimensions}
         />
       </div>
     </div>

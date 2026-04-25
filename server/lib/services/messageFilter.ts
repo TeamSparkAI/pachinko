@@ -83,7 +83,12 @@ export async function applyPolicies(
         if (policy.origin !== 'either' && policy.origin !== message.origin) {
             return false;
         }
-        if (policy.methods && policy.methods.length > 0 && !policy.methods.includes(messageData.payloadMethod)) {
+        const matchTk = policy.matchToolkit?.trim();
+        if (matchTk && messageData.payloadToolkit !== matchTk) {
+            return false;
+        }
+        const matchTool = policy.matchTool?.trim();
+        if (matchTool && (messageData.payloadToolName ?? '') !== matchTool) {
             return false;
         }
         return true;

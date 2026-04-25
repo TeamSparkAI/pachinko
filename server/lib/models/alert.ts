@@ -16,8 +16,8 @@ export abstract class AlertModel {
         severity?: number;
         startTime?: string;
         endTime?: string;
-        source?: string;
         payloadToolkit?: string;
+        payloadToolName?: string;
     }): Promise<Array<{ timestamp: string; counts: Record<string, number> }>>;
     abstract aggregate(params: {
         dimension: string;
@@ -27,8 +27,8 @@ export abstract class AlertModel {
         severity?: number;
         startTime?: string;
         endTime?: string;
-        source?: string;
         payloadToolkit?: string;
+        payloadToolName?: string;
     }): Promise<Array<{ value: string; count: number }>>;
     abstract getDimensionValues(params: {
         dimensions: string[];
@@ -37,8 +37,8 @@ export abstract class AlertModel {
         seen?: boolean;
         startTime?: string;
         endTime?: string;
-        source?: string;
         payloadToolkit?: string;
+        payloadToolName?: string;
     }): Promise<Record<string, string[]>>;
     abstract analyze(): Promise<void>;
     abstract deleteOldAlerts(beforeDate: string): Promise<{ deletedCount: number }>;

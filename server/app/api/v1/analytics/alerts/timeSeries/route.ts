@@ -5,7 +5,7 @@ import { logger } from "@/lib/logging/server";
 import { getApiTenantOr401 } from "@/lib/api/apiAuth";
 
 type TimeUnit = "hour" | "day" | "week" | "month";
-type Dimension = "policyId" | "conditionName" | "seen" | "severity" | "source" | "payloadToolkit";
+type Dimension = "policyId" | "conditionName" | "seen" | "severity" | "payloadToolkit" | "payloadToolName";
 
 interface AlertTimeSeriesParams {
     dimension: Dimension;
@@ -16,8 +16,8 @@ interface AlertTimeSeriesParams {
     severity?: number;
     startTime?: string;
     endTime?: string;
-    source?: string;
     payloadToolkit?: string;
+    payloadToolName?: string;
 }
 
 export interface AlertTimeSeriesData {
@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
             severity: searchParams.get("severity") ? Number(searchParams.get("severity")) : undefined,
             startTime: searchParams.get("startTime") || undefined,
             endTime: searchParams.get("endTime") || undefined,
-            source: searchParams.get("source") || undefined,
             payloadToolkit: searchParams.get("payloadToolkit") || undefined,
+            payloadToolName: searchParams.get("payloadToolName") || undefined,
         };
 
         if (!params.dimension || !params.timeUnit) {
@@ -82,8 +82,8 @@ export async function GET(request: NextRequest) {
                     ...(params.conditionName && { conditionName: params.conditionName }),
                     ...(params.seen !== undefined && { seen: params.seen }),
                     ...(params.severity !== undefined && { severity: params.severity }),
-                    ...(params.source && { source: params.source }),
                     ...(params.payloadToolkit && { payloadToolkit: params.payloadToolkit }),
+                    ...(params.payloadToolName && { payloadToolName: params.payloadToolName }),
                 },
             },
         };

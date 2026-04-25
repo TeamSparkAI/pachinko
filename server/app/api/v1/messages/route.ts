@@ -21,7 +21,6 @@ export async function GET(request: NextRequest) {
             userId: url.searchParams.get("userId") || undefined,
             source: url.searchParams.get("source") || undefined,
             payloadToolkit: url.searchParams.get("payloadToolkit") || undefined,
-            payloadMethod: url.searchParams.get("payloadMethod") || undefined,
             payloadToolName: url.searchParams.get("payloadToolName") || undefined,
             payloadMessageId: url.searchParams.get("payloadMessageId") || undefined,
         };

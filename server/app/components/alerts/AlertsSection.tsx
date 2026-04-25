@@ -20,8 +20,8 @@ export function AlertsSection({
     conditionName: undefined,
     seen: undefined,
     severity: undefined,
-    source: undefined,
     payloadToolkit: undefined,
+    payloadToolName: undefined,
     ...initialFilters
   });
   const [pendingFilters, setPendingFilters] = React.useState<AlertFilter>(filters);
@@ -36,15 +36,15 @@ export function AlertsSection({
   const [totalAlerts, setTotalAlerts] = React.useState<number>(0);
 
   const fetchedAlertDimensions = useDimensions({
-    dimensions: ['policyId', 'conditionName', 'severity', 'seen', 'source', 'payloadToolkit'],
+    dimensions: ['policyId', 'conditionName', 'severity', 'seen', 'payloadToolkit', 'payloadToolName'],
     autoFetch: true,
     filters: {
       policyId: initialFilters.policyId,
       conditionName: initialFilters.conditionName,
       severity: initialFilters.severity,
       seen: initialFilters.seen,
-      source: initialFilters.source,
-      payloadToolkit: initialFilters.payloadToolkit
+      payloadToolkit: initialFilters.payloadToolkit,
+      payloadToolName: initialFilters.payloadToolName,
     }
   }).dimensions;
   const dimensions = providedDimensions ?? fetchedAlertDimensions;
@@ -134,8 +134,8 @@ export function AlertsSection({
       conditionName: undefined,
       seen: undefined,
       severity: undefined,
-      source: undefined,
       payloadToolkit: undefined,
+      payloadToolName: undefined,
       ...initialFilters
     };
     setPendingFilters(emptyFilters);

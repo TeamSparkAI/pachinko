@@ -12,7 +12,8 @@ const emptyPolicy: Omit<PolicyData, 'policyId' | 'createdAt' | 'updatedAt' | 'te
   description: undefined,
   severity: 2,
   origin: 'either',
-  methods: undefined,
+  matchToolkit: undefined,
+  matchTool: undefined,
   conditions: [],
   actions: [],
   enabled: true

@@ -26,51 +26,36 @@ export function DashboardChart({ dimension, timeRange: initialTimeRange, filters
     filters
   });
 
+  const reviewLink = dimension === 'policyId' ? '/alerts' : '/messages';
+  const title =
+    dimension === 'policyId'
+      ? `Alerts by Policy${timeRange === '7days' ? ' (Last 7 Days)' : timeRange === '30days' ? ' (Last 30 Days)' : ' (All Time)'}`
+      : `Messages by Toolkit${timeRange === '7days' ? ' (Last 7 Days)' : timeRange === '30days' ? ' (Last 30 Days)' : ' (All Time)'}`;
+
+  let chartBody: React.ReactNode;
   if (isLoading) {
-    return (
+    chartBody = (
       <div className="h-[300px] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
       </div>
     );
-  }
-
-  if (error) {
-    return (
-      <div className="h-[300px] flex items-center justify-center text-red-500">
-        Error: {error}
-      </div>
+  } else if (error) {
+    chartBody = (
+      <div className="h-[300px] flex items-center justify-center text-red-500">Error: {error}</div>
     );
-  }
-
-  if (!data.length) {
-    return (
+  } else if (!data.length) {
+    chartBody = (
       <div className="h-[300px] flex items-center justify-center text-gray-500">
         No data available for the selected time period
       </div>
     );
-  }
-
-  const reviewLink = dimension === 'policyId' ? '/alerts' : '/messages';
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">
-          {dimension === 'policyId' ? 'Alerts by Policy' : 'Messages by toolkit'} {timeRange === '7days' ? '(Last 7 Days)' : timeRange === '30days' ? '(Last 30 Days)' : '(All Time)'}
-        </h2>
-        <Link 
-          href={reviewLink}
-          className="text-blue-500 hover:text-blue-700 text-sm font-medium"
-        >
-          Review
-        </Link>
-      </div>
-      
+  } else {
+    chartBody = (
       <div className="h-[300px] relative">
-        <TimeSeriesChart 
-          data={data} 
-          height={300} 
-          dimensions={dimensions} 
+        <TimeSeriesChart
+          data={data}
+          height={300}
+          dimensions={dimensions}
           dimension={dimension}
           onLegendClick={(entry) => {
             if (dimension === 'policyId') {
@@ -87,6 +72,18 @@ export function DashboardChart({ dimension, timeRange: initialTimeRange, filters
           }}
         />
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">{title}</h2>
+        <Link href={reviewLink} className="text-blue-500 hover:text-blue-700 text-sm font-medium">
+          Review
+        </Link>
+      </div>
+      {chartBody}
     </div>
   );
 }

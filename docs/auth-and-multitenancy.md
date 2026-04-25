@@ -181,3 +181,27 @@ Examples of follow-up hardening (no commitment in v1):
 - **Rate limiting:** Not implemented on login or webhooks.
 - **Tests:** No dedicated unit tests yet for password hash round-trip or Bearer **`keyLookupId.secret`** parsing edge cases.
 - **Production bootstrap:** No env gate, no forced password change on first login, no invite-only path.
+
+---
+
+## Bootstrap and initial tenant data (preferred patterns)
+
+Today the first **tenant** and **bootstrap admin** come from **`ensureBootstrapData`** after migrations (see **Bootstrap and migrations** above), with email/password from **constants** when **`users`** is empty. That is convenient for development; production should move toward **explicit, reproducible** provisioning.
+
+### What not to rely on
+
+- **`npm install` / `postinstall`:** Runs on every install and in **CI and container builds**, often **without** a database, **without** a TTY, and without a clear “this is the deployer” context. It is a poor place for **interactive** questions or **deployment-specific** tenant names, admin email, or passwords. Use install only for dependencies (and optional non-secret codegen), not for tenant bootstrap.
+
+### Preferred directions
+
+1. **Dedicated CLI after the database exists** — e.g. **`npm run bootstrap`** / **`npx tsx scripts/init-tenant.ts`** (names illustrative) run **after** **`migrate`** (or equivalent) so SQLite and **`tenants` / `users`** tables exist. Accept **flags** (`--tenant-name`, `--admin-email`, …) and/or **environment variables** for non-interactive and CI/Docker. Optionally prompt with **readline** when stdin is a TTY and no flags/env are set.
+2. **First application start** — Same logic as (1) but triggered when the server detects an empty **`users`** table: either refuse to serve until an init step completes, or print a **one-time setup** URL / command. Keeps “first run” semantics without tying them to **`npm install`**.
+3. **Secrets and repeatability** — Prefer **`.env`** (gitignored) or the host’s secret store for **admin password** and **`PACHINKO_SESSION_JWT_SECRET`**, not values written into the repo from a script. Automation should use **env-only** paths; humans can use CLI prompts locally.
+
+### Summary
+
+| Approach | Role |
+|----------|------|
+| **`npm install`** | Dependencies only — **not** for initial tenant or admin identity. |
+| **CLI / first-run init** (post-migrate) | **Preferred** for collecting or injecting initial **tenant** + **first user** when moving beyond fixed constants. |
+| **Env and flags** | **Preferred** for production and CI; prompts optional for local use. |

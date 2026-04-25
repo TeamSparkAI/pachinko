@@ -127,39 +127,39 @@ export function MessagesDashboard({
           if (value) queryParams.set(key, value);
         });
 
-        const [timeSeriesResponse, sourceResponse] = await Promise.all([
+        const [timeSeriesResponse, userAggregateResponse] = await Promise.all([
           fetch(`/api/v1/analytics/messages/timeSeries?${queryParams.toString()}`),
-          fetch(`/api/v1/analytics/messages/aggregate?dimension=source&${queryParams.toString()}`)
+          fetch(`/api/v1/analytics/messages/aggregate?dimension=userId&${queryParams.toString()}`)
         ]);
 
-        const [timeSeriesJson, sourceJson] = await Promise.all([
+        const [timeSeriesJson, userAggregateJson] = await Promise.all([
           timeSeriesResponse.json(),
-          sourceResponse.json()
+          userAggregateResponse.json()
         ]);
 
         const timeSeriesResult = new JsonResponseFetch<MessageTimeSeriesPayload>(timeSeriesJson, 'timeSeries');
-        const sourceResult = new JsonResponseFetch<MessageAggregatePayload>(sourceJson, 'aggregate');
+        const userAggregateResult = new JsonResponseFetch<MessageAggregatePayload>(userAggregateJson, 'aggregate');
 
         if (!timeSeriesResult.isSuccess()) {
           throw new Error(`Time series request failed: ${timeSeriesResult.message}`);
         }
 
-        if (!sourceResult.isSuccess()) {
-          throw new Error(`Source aggregate request failed: ${sourceResult.message}`);
+        if (!userAggregateResult.isSuccess()) {
+          throw new Error(`User aggregate request failed: ${userAggregateResult.message}`);
         }
 
         const timeSeriesDataResult = timeSeriesResult.payload;
-        const sourceDataResult = sourceResult.payload;
+        const userAggregateDataResult = userAggregateResult.payload;
 
         if (!timeSeriesDataResult) {
           throw new Error('Invalid time series data format');
         }
 
-        if (!sourceDataResult) {
+        if (!userAggregateDataResult) {
           throw new Error('Invalid aggregate data format');
         }
 
-        log.debug('Received new source distribution data:', sourceDataResult);
+        log.debug('Received new user distribution data:', userAggregateDataResult);
         log.debug('Current pie data:', clientData);
 
         // Fill in missing days and update time series data
@@ -167,7 +167,7 @@ export function MessagesDashboard({
         setTimeSeriesData(filledData);
         
         // Create new client data
-        const newClientData = sourceDataResult.data.map((item: MessageAggregateData) => ({
+        const newClientData = userAggregateDataResult.data.map((item: MessageAggregateData) => ({
           name: item.value,
           value: item.count
         }));
@@ -206,7 +206,7 @@ export function MessagesDashboard({
 
   const handlePieClick = (entry: any) => {
     if (entry && entry.name) {
-      const newURL = toggleFilterInUrl('source', entry.name, activeFilters.source);
+      const newURL = toggleFilterInUrl('userId', entry.name, activeFilters.userId);
       router.push(`/messages${newURL}`);
     }
   };
@@ -282,7 +282,7 @@ export function MessagesDashboard({
       
       <div className="grid grid-cols-2 gap-6 relative">
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Messages by toolkit {timeRange === '7days' ? '(Last 7 Days)' : timeRange === '30days' ? '(Last 30 Days)' : '(All Time)'}</h2>
+          <h2 className="text-xl font-semibold mb-4">Messages by Toolkit {timeRange === '7days' ? '(Last 7 Days)' : timeRange === '30days' ? '(Last 30 Days)' : '(All Time)'}</h2>
           <div className="h-80">
             {!timeSeriesData.length ? (
               <div className="h-full flex items-center justify-center text-gray-500">
@@ -333,7 +333,7 @@ export function MessagesDashboard({
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Messages by source {timeRange === '7days' ? '(Last 7 Days)' : timeRange === '30days' ? '(Last 30 Days)' : '(All Time)'}</h2>
+          <h2 className="text-xl font-semibold mb-4">Messages by user {timeRange === '7days' ? '(Last 7 Days)' : timeRange === '30days' ? '(Last 30 Days)' : '(All Time)'}</h2>
           <div className="h-80">
             {!clientData.length ? (
               <div className="h-full flex items-center justify-center text-gray-500">
@@ -350,7 +350,7 @@ export function MessagesDashboard({
                     cy="50%"
                     outerRadius={100}
                     label={({ name, percent }: { name: string; percent: number }) => {
-                      const label = dimensions.getLabel('source', name) || name;
+                      const label = dimensions.getLabel('userId', name) || name;
                       return `${label} (${(percent * 100).toFixed(0)}%)`;
                     }}
                     isAnimationActive={true}
@@ -364,7 +364,7 @@ export function MessagesDashboard({
                     ))}
                   </Pie>
                   <Tooltip formatter={(value: number, name: string) => {
-                    const label = dimensions.getLabel('source', name) || name;
+                    const label = dimensions.getLabel('userId', name) || name;
                     return [`${label}: ${value}`];
                   }} />
                 </PieChart>

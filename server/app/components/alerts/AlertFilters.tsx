@@ -113,24 +113,6 @@ export function AlertFilters({
           </div>
         )}
 
-        {!('source' in initialFilters) && (
-          <div className="min-w-[160px] max-w-[240px]">
-            <label className="block text-sm text-gray-600 mb-1">Source</label>
-            <select
-              value={localFilters.source || ''}
-              onChange={(e) => handleFilterChange('source', e.target.value || undefined)}
-              className="w-full px-1.5 py-1 text-sm border rounded"
-            >
-              <option value="">All sources</option>
-              {dimensions.getOptions('source').map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
         {!('payloadToolkit' in initialFilters) && (
           <div className="min-w-[200px] max-w-[300px]">
             <label className="block text-sm text-gray-600 mb-1">Toolkit</label>
@@ -141,6 +123,24 @@ export function AlertFilters({
             >
               <option value="">All toolkits</option>
               {dimensions.getOptions('payloadToolkit').map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {!('payloadToolName' in initialFilters) && (
+          <div className="min-w-[200px] max-w-[300px]">
+            <label className="block text-sm text-gray-600 mb-1">Tool</label>
+            <select
+              value={localFilters.payloadToolName || ''}
+              onChange={(e) => handleFilterChange('payloadToolName', e.target.value || undefined)}
+              className="w-full px-1.5 py-1 text-sm border rounded"
+            >
+              <option value="">All tools</option>
+              {dimensions.getOptions('payloadToolName').map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>

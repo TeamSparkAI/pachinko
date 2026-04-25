@@ -128,8 +128,8 @@ export async function GET(request: NextRequest) {
             seen: params.seen,
             startTime: params.startTime,
             endTime: params.endTime,
-            source: params.source,
             payloadToolkit: params.payloadToolkit,
+            payloadToolName: params.payloadToolName,
         };
 
         const [messageData, alertData, idData] = await Promise.all([

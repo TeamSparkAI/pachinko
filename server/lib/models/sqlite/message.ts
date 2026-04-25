@@ -63,10 +63,6 @@ export class SqliteMessageModel extends MessageModel {
             conditions.push('m.payloadToolkit = ?');
             params.push(filter.payloadToolkit);
         }
-        if (filter.payloadMethod) {
-            conditions.push('m.payloadMethod = ?');
-            params.push(filter.payloadMethod);
-        }
         if (filter.payloadMessageId) {
             conditions.push('m.payloadMessageId = ?');
             params.push(filter.payloadMessageId);

@@ -4,7 +4,7 @@ import { ModelFactory } from "@/lib/models";
 import { logger } from "@/lib/logging/server";
 import { getApiTenantOr401 } from "@/lib/api/apiAuth";
 
-type AlertDimension = "policyId" | "conditionName" | "seen" | "severity" | "source" | "payloadToolkit";
+type AlertDimension = "policyId" | "conditionName" | "seen" | "severity" | "payloadToolkit" | "payloadToolName";
 
 export interface AlertAggregateParams {
     dimension: AlertDimension;
@@ -14,8 +14,8 @@ export interface AlertAggregateParams {
     severity?: number;
     startTime?: string;
     endTime?: string;
-    source?: string;
     payloadToolkit?: string;
+    payloadToolName?: string;
 }
 
 export interface AlertAggregateData {
@@ -57,8 +57,8 @@ export async function GET(request: NextRequest) {
             severity: searchParams.get("severity") ? parseInt(searchParams.get("severity")!, 10) : undefined,
             startTime: searchParams.get("startTime") || undefined,
             endTime: searchParams.get("endTime") || undefined,
-            source: searchParams.get("source") || undefined,
             payloadToolkit: searchParams.get("payloadToolkit") || undefined,
+            payloadToolName: searchParams.get("payloadToolName") || undefined,
         };
 
         const data = await alertModel.aggregate(params);
@@ -79,8 +79,8 @@ export async function GET(request: NextRequest) {
                     ...(params.conditionName && { conditionName: params.conditionName }),
                     ...(params.seen !== undefined && { seen: params.seen }),
                     ...(params.severity !== undefined && { severity: params.severity }),
-                    ...(params.source && { source: params.source }),
                     ...(params.payloadToolkit && { payloadToolkit: params.payloadToolkit }),
+                    ...(params.payloadToolName && { payloadToolName: params.payloadToolName }),
                 },
             },
         };
