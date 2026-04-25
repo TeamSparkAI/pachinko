@@ -16,46 +16,60 @@ interface QuickStartStep {
   description: string;
   path: string;
   linkText: string;
+  /** Optional second link (e.g. API docs alongside Settings). */
+  secondaryPath?: string;
+  secondaryLinkText?: string;
   isComplete?: boolean;
 }
 
 const quickStartSteps: QuickStartStep[] = [
   {
     number: 1,
-    title: 'Connect Arcade Engine',
-    description: 'Send MCP traffic through Arcade Engine webhooks so messages are ingested with source, toolkit, and version metadata.',
-    path: '/api',
-    linkText: 'View API docs'
+    title: 'Generate an API key for Arcade',
+    description:
+      'In Pachinko, go to Settings → API keys. Create a key and copy it. Use this key as the bearer token key during the next step when configuring Arcade.',
+    path: '/settings',
+    linkText: 'Open Settings',
   },
   {
     number: 2,
-    title: 'Review Messages',
-    description: 'Inspect MCP requests and responses by source, toolkit, method, and tool.',
-    path: '/messages',
-    linkText: 'Open Messages'
+    title: 'Connect Arcade Engine',
+    description:
+      'In the Arcade Dashboard, open Contextual Access and configure your webhook extension by setting the pre- and post-execution URLs to the Pachinko URLs shown in Settings, then set the Bearer token to the key you copied in step 1. Arcade traffic should then flow through Pachinko.',
+    path: '/settings',
+    linkText: 'Open Settings',
+    secondaryPath: '/api',
+    secondaryLinkText: 'View API docs',
   },
   {
     number: 3,
-    title: 'Define Policies',
-    description: 'Create policies that evaluate stored messages and raise alerts when conditions match.',
-    path: '/policies',
-    linkText: 'Manage Policies'
+    title: 'Review Messages',
+    description: 'Inspect MCP requests and responses by source, toolkit, method, and tool.',
+    path: '/messages',
+    linkText: 'Open Messages',
   },
   {
     number: 4,
-    title: 'Triage Alerts',
-    description: 'Review policy hits, drill into the triggering message, and mark alerts as seen.',
-    path: '/alerts',
-    linkText: 'Open Alerts'
+    title: 'Define Policies',
+    description: 'Create policies that evaluate stored messages and raise alerts when conditions match.',
+    path: '/policies',
+    linkText: 'Manage Policies',
   },
   {
     number: 5,
+    title: 'Triage Alerts',
+    description: 'Review policy hits, drill into the triggering message, and mark alerts as seen.',
+    path: '/alerts',
+    linkText: 'Open Alerts',
+  },
+  {
+    number: 6,
     title: 'Monitor Traffic',
     description: 'Use the dashboard for time-series views of messages and alert volume.',
     path: '/dashboard',
     linkText: 'View Dashboard',
-    isComplete: true
-  }
+    isComplete: true,
+  },
 ];
 
 const concepts: Concept[] = [
@@ -132,7 +146,7 @@ export default function HelpPage() {
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-semibold text-gray-900 mb-6">Quick Start Guide</h2>
         <p className="text-gray-600 mb-6">
-          Ingest MCP traffic from Arcade Engine, review messages and toolkit metadata, then attach policies and triage alerts from the dashboard.
+          Create a tenant API key for Arcade Bearer auth, point Arcade Contextual Access webhooks at Pachinko, then review messages and toolkit metadata, attach policies, and triage alerts from the dashboard.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {quickStartSteps.map((step, index) => (
@@ -155,15 +169,28 @@ export default function HelpPage() {
                 <p className="text-sm text-gray-600 mb-2">
                   {step.description}
                 </p>
-                <Link
-                  href={step.path}
-                  className="inline-flex items-center mt-2 text-sm text-blue-600 hover:text-blue-800"
-                >
-                  {step.linkText}
-                  <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                  <Link
+                    href={step.path}
+                    className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    {step.linkText}
+                    <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Link>
+                  {step.secondaryPath && step.secondaryLinkText ? (
+                    <Link
+                      href={step.secondaryPath}
+                      className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      {step.secondaryLinkText}
+                      <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </Link>
+                  ) : null}
+                </div>
               </div>
             </div>
           ))}
