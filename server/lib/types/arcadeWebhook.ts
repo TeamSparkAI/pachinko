@@ -264,6 +264,16 @@ export function mapProcessedJsonRpcToArcadePostResult(
       return { code: 'CHECK_FAILED', error_message: 'Invalid policy response' };
     }
   }
+
+  /** Return Error action replaces `result` with `{ error: { message } }` (same pattern as pre `params`). */
+  const resultObj = recordJson(resultValue);
+  if (resultObj && 'error' in resultObj && resultObj.error !== undefined && resultObj.error !== null) {
+    const nested = recordJson(resultObj.error);
+    const msg =
+      nested && typeof nested.message === 'string' ? nested.message : 'Policy blocked request';
+    return { code: 'CHECK_FAILED', error_message: msg };
+  }
+
   if (shape.kind === 'wrapped_value') {
     const obj = recordJson(resultValue);
     if (obj && Object.keys(obj).length === 1 && 'value' in obj) {

@@ -15,6 +15,7 @@ This document describes how Pachinko applies **policies** when **Arcade Engine**
 | **Policy run** | Same stack as other JSON-RPC paths: **`applyPolicies`** → **`PolicyEngine.processMessage`** → **`applyModifications`**; **`RegexCondition`** and other registered conditions |
 | **Persistence** | **`messages`** with **`source: 'arcade'`**; **`payloadMessageId`** = Arcade **`execution_id`** (same as JSON-RPC **`id`**); post updates pre row or inserts orphan **server** row |
 | **Downstream** | **`alerts`**, **`message_actions`** on policy hits / actions |
+| **Return Error → Arcade** | **`PolicyActionError`** writes **`{ error: { message } }`** into synthetic JSON-RPC **`params`** (pre) or **`result`** (post). **`mapProcessedJsonRpcToArcadePreResult`** / **`mapProcessedJsonRpcToArcadePostResult`** map that (and top-level JSON-RPC **`error`**) to Arcade **`code: 'CHECK_FAILED'`** plus **`error_message`** from **`message`**. |
 | **Schema** | **`server/appData/migrations/001_initial_arcade.sql`** (Arcade-oriented messages columns, tenant-scoped tables) |
 | **Hook URLs in UI** | Settings shows pre/post paths; optional **public base URL** for copy/paste (`EditAppSettingsModal` / app settings) |
 
@@ -76,6 +77,12 @@ Arcade configures the exact URLs; **JSON bodies** match [`webhook.yaml`](./webho
 5. Map back to Arcade with **`mapProcessedJsonRpcToArcadePreResult`** / **`mapProcessedJsonRpcToArcadePostResult`** — **200** with native Arcade result JSON (not the JSON-API **`meta`** envelope used elsewhere).
 
 **Synthetic message context:** **`MessageFilterContext`** sets **`source: 'arcade'`**, **`user`** from **`context.user_id`**, **`payloadToolkit`** / **`payloadToolVersion`** from **`tool`**. **`payloadMethod`** on stored **`MessageData`** is **`tools/call`** for pre; **`payloadToolName`** comes from synthetic **`params.name`**.
+
+### 3.1 Return Error (policy deny) → Arcade
+
+The **Return Error** action (**`PolicyActionError`**, registry id **`error`**) collects a single **`message`** from the operator. It applies **`{ error: { message } }`** as the modified JSON-RPC **`params`** (client / pre) or **`result`** (server / post), so the policy engine stays JSON-RPC–shaped internally.
+
+**`mapProcessedJsonRpcToArcadePreResult`** and **`mapProcessedJsonRpcToArcadePostResult`** both treat an embedded **`error.message`** on **`params`** / **`result`** (after the usual string parse of stored payloads) as a **deny**: they return Arcade **`{ code: 'CHECK_FAILED', error_message: <message> }`**. A top-level JSON-RPC **`error`** object on the processed message is also mapped to **`CHECK_FAILED`** + **`error_message`** when present. Arcade’s response **`code`** is always **`CHECK_FAILED`** for this path (not a separate numeric code).
 
 ---
 
@@ -182,6 +189,7 @@ These items are **intentionally not implemented** in the current codebase; they 
 - `server/lib/services/messageFilter.ts` — **`applyPolicies`**, **`MessageFilterService`**
 - `server/lib/models/types/policy.ts` — **`PolicyData`** (**`methods?: string[]`** today)
 - `server/lib/policy-engine/core/PolicyEngine.ts`
+- `server/lib/policy-engine/actions/PolicyActionError.ts` — **Return Error** (`error`)
 - `server/lib/policy-engine/conditions/` — e.g. **`RegexCondition`**
 
 Update this file when Arcade’s contract or Pachinko’s hook behavior changes.

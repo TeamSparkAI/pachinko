@@ -1,9 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PolicyCondition, PolicyAction } from '@/lib/models/types/policy';
 import { PolicyElementData } from '@/lib/models/types/policyElement';
 import { usePolicyElements } from '@/app/hooks/usePolicyElements';
 import { getDefaultParams } from './schemaUtils';
 import { generateBase32Id } from '@/lib/utils/id';
+
+function newConditionFromElement(selectedElement: PolicyElementData): PolicyCondition {
+  return {
+    elementClassName: selectedElement.className,
+    elementConfigId: selectedElement.configId,
+    instanceId: generateBase32Id(),
+    name: '',
+    notes: '',
+    params: selectedElement.paramsSchema ? getDefaultParams(selectedElement.paramsSchema) : {},
+  };
+}
+
+function newActionFromElement(selectedElement: PolicyElementData): PolicyAction {
+  return {
+    elementClassName: selectedElement.className,
+    elementConfigId: selectedElement.configId,
+    instanceId: generateBase32Id(),
+    params: selectedElement.paramsSchema ? getDefaultParams(selectedElement.paramsSchema) : {},
+  };
+}
 
 interface AddConditionDialogProps {
   isOpen: boolean;
@@ -22,25 +42,34 @@ interface AddActionDialogProps {
 export function AddConditionDialog({ isOpen, onClose, onAdd, title }: AddConditionDialogProps) {
   const [selectedElement, setSelectedElement] = useState<PolicyElementData | null>(null);
   const { elements: availableElements, loading, error } = usePolicyElements('condition');
-  
+  const singleTypeAutoHandledRef = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      singleTypeAutoHandledRef.current = false;
+      return;
+    }
+    if (loading || error) return;
+    if (availableElements.length !== 1) return;
+    if (singleTypeAutoHandledRef.current) return;
+    singleTypeAutoHandledRef.current = true;
+    onAdd(newConditionFromElement(availableElements[0]));
+    onClose();
+    setSelectedElement(null);
+  }, [isOpen, loading, error, availableElements, onAdd, onClose]);
+
   const handleAdd = () => {
     if (!selectedElement) return;
-    
-    const newCondition: PolicyCondition = {
-      elementClassName: selectedElement.className,
-      elementConfigId: selectedElement.configId,
-      instanceId: generateBase32Id(),
-      name: '',
-      notes: '',
-      params: selectedElement.paramsSchema ? getDefaultParams(selectedElement.paramsSchema) : {}
-    };
-    
-    onAdd(newCondition);
+    onAdd(newConditionFromElement(selectedElement));
     onClose();
     setSelectedElement(null);
   };
 
   if (!isOpen) return null;
+
+  if (!loading && !error && availableElements.length === 1) {
+    return null;
+  }
   
   return (
     <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
@@ -118,23 +147,34 @@ export function AddConditionDialog({ isOpen, onClose, onAdd, title }: AddConditi
 export function AddActionDialog({ isOpen, onClose, onAdd, title }: AddActionDialogProps) {
   const [selectedElement, setSelectedElement] = useState<PolicyElementData | null>(null);
   const { elements: availableElements, loading, error } = usePolicyElements('action');
-  
+  const singleTypeAutoHandledRef = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      singleTypeAutoHandledRef.current = false;
+      return;
+    }
+    if (loading || error) return;
+    if (availableElements.length !== 1) return;
+    if (singleTypeAutoHandledRef.current) return;
+    singleTypeAutoHandledRef.current = true;
+    onAdd(newActionFromElement(availableElements[0]));
+    onClose();
+    setSelectedElement(null);
+  }, [isOpen, loading, error, availableElements, onAdd, onClose]);
+
   const handleAdd = () => {
     if (!selectedElement) return;
-    
-    const newAction: PolicyAction = {
-      elementClassName: selectedElement.className,
-      elementConfigId: selectedElement.configId,
-      instanceId: generateBase32Id(),
-      params: selectedElement.paramsSchema ? getDefaultParams(selectedElement.paramsSchema) : {}
-    };
-    
-    onAdd(newAction);
+    onAdd(newActionFromElement(selectedElement));
     onClose();
     setSelectedElement(null);
   };
 
   if (!isOpen) return null;
+
+  if (!loading && !error && availableElements.length === 1) {
+    return null;
+  }
   
   return (
     <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
