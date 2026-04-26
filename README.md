@@ -9,7 +9,7 @@ Apply security policies to tool calls happening in Arcade.dev to protect your AP
 **You need Node.js 20 or newer.**
 
 ```bash
-npm install -g teamspark-pachinko
+npm install -g @teamsparkai/pachinko
 ```
 
 Set a session secret (not required, but strongly advised if exposing to public internet):
@@ -114,9 +114,10 @@ For **`start:dev`** only, **`.env`** / **`.env.local`** are read from the **repo
 
 | Script | Purpose |
 |--------|---------|
-| **`npm run build`** | Full **`dist/`** layout (Next standalone, static assets, `pachinko` binary, `appData`, `public`). |
-| **`npm run build:next`** | Next.js production build only. |
-| **`npm run build:bundle`** | esbuild **`server.ts`** → **`dist/server.js`**. |
+| **`npm run build`** | Full **`dist/`** (Next **`.next`**, `pachinko` binary, `appData`, `public`). **Use this (or `prepack`) before publish.** |
+| **`npm run build:next`** | **`next build`** (writes **`.next/`** in the repo). |
+| **`npm run build:bundle`** | esbuild **`server.ts`** → repo **`dist/server.js`**. |
+| **`npm run build:prod`** | **`build:next`** + **`build:bundle`** (what **`scripts/build.js`** runs for the first half). |
 | **`npm run start:prod`** | **`node dist/server.js`**. |
 | **`npm run start:dev`** | Next build + **`tsx`** server on port **3000**. |
 | **`npm run start:server`** | **`./dist/pachinko`** (after **`npm run build`**). |

@@ -8,7 +8,6 @@ loadEnv({ path: path.join(rootDir, '.env.local'), override: true });
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
   webpack: (config, { isServer }) => {
     // Exclude test files from the build
     config.module.rules.push({

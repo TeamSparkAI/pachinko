@@ -40,48 +40,15 @@ try {
   process.exit(1);
 }
 
-function copyNextStandalone() {
-  const candidates = [
-    path.join(appRoot, '.next', 'standalone', '.next'),
-    path.join(appRoot, '.next', 'standalone', 'teamspark-pachinko', '.next'),
-    path.join(appRoot, '.next', 'standalone', 'pachinko', '.next'),
-    path.join(appRoot, '.next', 'standalone', 'pachinko-server', '.next'),
-    path.join(appRoot, '.next', 'standalone', 'server', '.next')
-  ];
-  for (const nextSrc of candidates) {
-    if (fs.existsSync(nextSrc)) {
-      const nextDest = path.join(distDir, '.next');
-      fs.cpSync(nextSrc, nextDest, { recursive: true });
-      console.log('✅ Next.js standalone .next copied from', path.relative(repoRoot, nextSrc));
-      return true;
-    }
-  }
-  const standaloneRoot = path.join(appRoot, '.next', 'standalone');
-  if (fs.existsSync(standaloneRoot)) {
-    console.error('❌ Could not find .next under standalone. Contents of', standaloneRoot);
-    try {
-      console.error(fs.readdirSync(standaloneRoot).join(', '));
-    } catch (_) {}
-  }
-  return false;
-}
-
-console.log('📋 Copying Next.js standalone build to dist/.next...');
-if (!copyNextStandalone()) {
-  console.error('❌ Next.js standalone .next not found');
+const nextBuildSrc = path.join(appRoot, '.next');
+const nextDest = path.join(distDir, '.next');
+console.log('📋 Copying Next.js .next/ to dist/.next/...');
+if (!fs.existsSync(nextBuildSrc)) {
+  console.error('❌ Next.js build not found. Run: npm run build:prod');
   process.exit(1);
 }
-
-console.log('📋 Copying Next.js static assets...');
-const nextStaticSrc = path.join(appRoot, '.next', 'static');
-const nextStaticDest = path.join(distDir, '.next', 'static');
-if (fs.existsSync(nextStaticSrc)) {
-  fs.cpSync(nextStaticSrc, nextStaticDest, { recursive: true });
-  console.log('✅ Next.js static assets copied');
-} else {
-  console.error('❌ Next.js static directory not found');
-  process.exit(1);
-}
+fs.cpSync(nextBuildSrc, nextDest, { recursive: true });
+console.log('✅ Next.js build copied to', path.relative(repoRoot, nextDest));
 
 console.log('📋 Copying server executable to dist/pachinko...');
 const serverExecutable = path.join(appRoot, 'dist', 'server.js');

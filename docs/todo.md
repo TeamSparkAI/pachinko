@@ -31,32 +31,3 @@ More unit tests and integration tests
 * Domain: pachinko.teamspark.ai
 * Google Cloud ALB deploy (provision db, move static files to cdn, etc)
 
-## Arcade
-
-### Test
-
-* Test rewrite of inputs (pre) and output (post) through webhooks
-* Test block (pre and post)
-
-### Launch
-
-* Make repo public
-* Set package to public
-* Publish, validate, test run from npm install
-* Make video walkthrough of install (maybe show populated also)
-
-## Demo
-
-Show running dev server with data (tour of the app)
-Stop server
-npm run clean
-cd to a different dir (../demo)
-npm install -g teamspark-pachinko
-pachinko --port 3000
-Create account a log in
-ngrok http 3000
-Paste host into settings
-Create and copy arcade key
-Got to Arcade, new, paste bearer, get endpoints from pachinko, paste
-Add Bob->Robert policy
-Test in Arcade playground

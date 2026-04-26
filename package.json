@@ -1,8 +1,7 @@
 {
-  "name": "teamspark-pachinko",
+  "name": "@teamsparkai/pachinko",
   "version": "1.0.0",
   "description": "Policy engine and web UI (webhook-fed MCP message filtering)",
-  "private": true,
   "main": "index.js",
   "types": "index.d.ts",
   "bin": {
@@ -28,6 +27,7 @@
   },
   "homepage": "https://github.com/TeamSparkAI/pachinko#readme",
   "scripts": {
+    "prepack": "npm run build",
     "build": "node scripts/build.js",
     "build:next": "next build",
     "build:bundle": "esbuild server.ts --bundle --platform=node --target=node20 --outfile=dist/server.js --external:next --external:argon2 --external:fdir --external:http-status-codes --external:jsonc-parser --external:jsonwebtoken --external:loglevel --external:react --external:react-dom --external:recharts --external:sqlite --external:sqlite3 --external:swagger-ui-react --external:tailwindcss --external:winston --external:winston-daily-rotate-file --external:ws --external:yaml --main-fields=module,main --resolve-extensions=.js,.ts,.json",

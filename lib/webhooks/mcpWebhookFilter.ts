@@ -21,6 +21,29 @@ import type { ArcadePostHookRequest, ArcadePreHookRequest } from '@/lib/types/ar
 
 export type ArcadeWebhookDirection = 'client' | 'server';
 
+function hookLabelString(direction: ArcadeWebhookDirection): 'pre' | 'post' {
+  return direction === 'client' ? 'pre' : 'post';
+}
+
+function logHookSuccess(
+  hook: 'pre' | 'post',
+  httpStatus: number,
+  tenantId: number,
+  body: ArcadePreHookRequest | ArcadePostHookRequest
+): void {
+  const exec = typeof body.execution_id === 'string' ? body.execution_id : '';
+  const t = body.tool;
+  const toolName = isPlainJsonObject(t) && typeof t.name === 'string' ? t.name : '';
+  const toolkit = isPlainJsonObject(t) && typeof t.toolkit === 'string' ? t.toolkit : '';
+  const postNote =
+    hook === 'post' && 'success' in body && typeof body.success === 'boolean'
+      ? ` success=${body.success}`
+      : '';
+  logger.info(
+    `[Arcade webhook] ${hook} ${httpStatus} tenant=${tenantId} execution_id=${exec} tool=${toolName || 'n/a'} toolkit=${toolkit || 'n/a'}${postNote}`
+  );
+}
+
 function syntheticMessageFilterContextForArcade(
   body: ArcadePreHookRequest | ArcadePostHookRequest
 ): MessageFilterContext {
@@ -38,10 +61,10 @@ function syntheticMessageFilterContextForArcade(
   };
 }
 
-/** Log + return JSON error (never silent 4xx/5xx). */
+/** Log + return JSON error (never silent 4xx/5xx). One warn line per request. */
 function jsonErrorResponse(hookLabel: string, status: number, message: string, extra?: string): Response {
   const suffix = extra ? ` ${extra}` : '';
-  console.warn('[Arcade webhook]', hookLabel, 'response', status, message + suffix);
+  logger.warn(`[Arcade webhook] ${hookLabel} response ${status} ${message}${suffix}`);
   return JsonResponse.errorResponse(status, message);
 }
 
@@ -86,8 +109,7 @@ export async function handleArcadeFilterWebhook(
   request: NextRequest,
   direction: ArcadeWebhookDirection
 ): Promise<Response> {
-  const hookLabel = direction === 'client' ? 'pre' : 'post';
-  console.log('[Arcade webhook]', hookLabel, request.method, new URL(request.url).pathname);
+  const hookLabel = hookLabelString(direction);
 
   try {
     const rawText = await request.text();
@@ -97,14 +119,15 @@ export async function handleArcadeFilterWebhook(
         hookLabel,
         400,
         'Empty request body. Arcade must POST JSON per docs/arcade/webhook.yaml.',
-        `(rawBytes=0)`
+        '(rawBytes=0)'
       );
     }
-    console.log(
-      '[Arcade webhook]',
-      hookLabel,
-      'raw JSON (may include secrets; truncated):',
-      rawText.length > maxRawLog ? `${rawText.slice(0, maxRawLog)}\n… [truncated ${rawText.length - maxRawLog} chars]` : rawText
+    const rawForDebug =
+      rawText.length > maxRawLog
+        ? `${rawText.slice(0, maxRawLog)}… [truncated ${rawText.length - maxRawLog} chars]`
+        : rawText;
+    logger.debug(
+      `[Arcade webhook] ${hookLabel} request raw JSON (may contain secrets; use debug only): ${rawForDebug}`
     );
 
     let body: unknown;
@@ -115,7 +138,7 @@ export async function handleArcadeFilterWebhook(
       return jsonErrorResponse(hookLabel, 400, 'Invalid JSON body', `(parse: ${hint})`);
     }
 
-    console.log('[Arcade webhook]', hookLabel, 'parsed summary', summarizeWebhookBody(body, rawText.length));
+    logger.debug(`[Arcade webhook] ${hookLabel} parsed summary ${summarizeWebhookBody(body, rawText.length)}`);
 
     const ctx = await resolveRequestContext(request);
     if (!isAuthorizedTenant(ctx) || ctx.authMode !== 'bearer') {
@@ -131,15 +154,12 @@ export async function handleArcadeFilterWebhook(
     if (direction === 'client') {
       if (isArcadeEnginePrePayload(body)) {
         const filterPayload = syntheticMessageFilterContextForArcade(body);
-        console.log(
-          '[Arcade webhook]',
-          hookLabel,
-          'using MessageFilterContext',
-          JSON.stringify({
+        logger.debug(
+          `[Arcade webhook] ${hookLabel} MessageFilterContext ${JSON.stringify({
             user: filterPayload.user,
             source: filterPayload.source,
             payloadToolkit: filterPayload.payloadToolkit,
-          })
+          })}`
         );
         const rpc = arcadePreToJsonRpcRequest(body);
         const validatedMessage = validateJsonRpcMessage('client', rpc);
@@ -158,7 +178,8 @@ export async function handleArcadeFilterWebhook(
           );
         }
         const preOut = mapProcessedJsonRpcToArcadePreResult(body.inputs, result.message);
-        console.log('[Arcade webhook]', hookLabel, 'response', 200, JSON.stringify(preOut));
+        logHookSuccess(hookLabel, 200, tenantId, body);
+        logger.debug(`[Arcade webhook] ${hookLabel} response body ${JSON.stringify(preOut)}`);
         return NextResponse.json(preOut);
       }
       if (isArcadeEnginePostPayloadWithoutInputs(body)) {
@@ -186,15 +207,12 @@ export async function handleArcadeFilterWebhook(
       }
       if (isArcadeEnginePostPayload(body)) {
         const filterPayload = syntheticMessageFilterContextForArcade(body);
-        console.log(
-          '[Arcade webhook]',
-          hookLabel,
-          'using MessageFilterContext',
-          JSON.stringify({
+        logger.debug(
+          `[Arcade webhook] ${hookLabel} MessageFilterContext ${JSON.stringify({
             user: filterPayload.user,
             source: filterPayload.source,
             payloadToolkit: filterPayload.payloadToolkit,
-          })
+          })}`
         );
 
         let shape;
@@ -222,7 +240,8 @@ export async function handleArcadeFilterWebhook(
           );
         }
         const postOut = mapProcessedJsonRpcToArcadePostResult(shape, result.message);
-        console.log('[Arcade webhook]', hookLabel, 'response', 200, JSON.stringify(postOut));
+        logHookSuccess(hookLabel, 200, tenantId, body);
+        logger.debug(`[Arcade webhook] ${hookLabel} response body ${JSON.stringify(postOut)}`);
         return NextResponse.json(postOut);
       }
       return jsonErrorResponse(
