@@ -13,8 +13,9 @@ info:
     **tenant API key** scheme. Webhook routes require the tenant API key only.
 
 servers:
-  - url: http://localhost:3000/api/v1
-    description: API base (Next.js app)
+  # Relative URL: Swagger "Try it out" uses the same origin as the page (localhost, ngrok, prod, etc.)
+  - url: /api/v1
+    description: API v1 (same host as the web app)
 
 tags:
   - name: Messages
