@@ -2,7 +2,12 @@ import { DatabaseClient } from './database';
 import { PolicyModel } from '../policy';
 import { PolicyData } from '../types/policy';
 
-type PolicyRow = PolicyData & { conditions: string; actions: string };
+/** Raw row from DB: conditions/actions are JSON strings; `enabled` is 0/1. */
+type PolicyRow = Omit<PolicyData, 'conditions' | 'actions' | 'enabled'> & {
+    conditions: string;
+    actions: string;
+    enabled: number;
+};
 
 function rowToPolicy(policy: PolicyRow): PolicyData {
     return {
@@ -11,6 +16,7 @@ function rowToPolicy(policy: PolicyRow): PolicyData {
         matchTool: policy.matchTool ?? undefined,
         conditions: policy.conditions ? JSON.parse(policy.conditions) : [],
         actions: policy.actions ? JSON.parse(policy.actions) : [],
+        enabled: policy.enabled === 1,
     };
 }
 

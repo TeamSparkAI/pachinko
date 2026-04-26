@@ -15,14 +15,15 @@ const ARCADE_POST_PATH = '/api/v1/webhooks/arcade/post';
 
 interface DashboardStats {
   policies: {
-    total: number;
+    active: number;
+    inactive: number;
     alerts: number;
   };
 }
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
-    policies: { total: 0, alerts: 0 },
+    policies: { active: 0, inactive: 0, alerts: 0 },
   });
   const [appSettings, setAppSettings] = useState<AppSettingsApiResponse | null>(null);
   const { setHeaderTitle } = useLayout();
@@ -62,28 +63,31 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function fetchStats() {
-      let totalPolicies = 0;
+      let active = 0;
+      let inactive = 0;
       let totalAlerts = 0;
       try {
         const policiesRes = await fetch('/api/v1/policies', { credentials: 'include' });
         if (policiesRes.status === 404) {
-          totalPolicies = 0;
+          active = 0;
+          inactive = 0;
           totalAlerts = 0;
         } else {
           const policiesData = await policiesRes.json();
           const policies = policiesData.policies || [];
-          totalPolicies = policies.length;
+          active = policies.filter((p: { enabled?: boolean }) => p.enabled).length;
+          inactive = policies.length - active;
           totalAlerts = policies.reduce(
             (sum: number, p: { status?: { unseenAlerts?: number } }) => sum + (p.status?.unseenAlerts || 0),
             0
           );
         }
         setStats({
-          policies: { total: totalPolicies, alerts: totalAlerts },
+          policies: { active, inactive, alerts: totalAlerts },
         });
       } catch {
         setStats({
-          policies: { total: 0, alerts: 0 },
+          policies: { active: 0, inactive: 0, alerts: 0 },
         });
       }
     }
@@ -125,11 +129,19 @@ export default function DashboardPage() {
             </a>
           </div>
           <div className="mt-2">
-            <div className="flex flex-col items-start">
-              <span className="text-3xl font-semibold text-gray-900">{stats.policies.total}</span>
-              <span className="text-sm text-gray-500">Active</span>
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-baseline gap-x-8 gap-y-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-semibold tabular-nums text-gray-900">{stats.policies.active}</span>
+                  <span className="text-sm text-gray-500">active</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-semibold tabular-nums text-gray-500">{stats.policies.inactive}</span>
+                  <span className="text-sm text-gray-500">inactive</span>
+                </div>
+              </div>
               {stats.policies.alerts > 0 && (
-                <span className="text-xs text-red-500 mt-1">{stats.policies.alerts} unread alerts</span>
+                <span className="text-xs text-red-500">{stats.policies.alerts} unread alerts</span>
               )}
             </div>
           </div>
@@ -166,14 +178,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <DashboardChart dimension="payloadToolkit" timeRange="7days" dimensions={dimensions} />
-      </div>
-
       <div className="bg-white rounded-lg shadow">
         <div className="p-6">
           <DashboardChart dimension="policyId" timeRange="7days" dimensions={dimensions} />
         </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <DashboardChart dimension="payloadToolkit" timeRange="7days" dimensions={dimensions} />
       </div>
     </div>
   );

@@ -4,6 +4,10 @@
 
 Apply security policies to tool calls happening in Arcade.dev to protect your API tokens, secrets, PII, and more. Pachinko provides webhook entrypoints and bearer token auth making it quick and easy to integrate with Arcade.dev.
 
+## Dashboard
+
+![Pachinko web dashboard: alerts, policies, webhooks, and charts](public/ss_dashboard.png)
+
 ## Install and run
 
 **You need Node.js 20 or newer.**

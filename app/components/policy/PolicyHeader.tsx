@@ -35,7 +35,7 @@ export function PolicyHeader({
                   : 'bg-green-600 hover:bg-green-700'
               } text-white`}
             >
-              {policy.enabled ? 'Disable' : 'Enable'}
+              {policy.enabled ? 'Deactivate' : 'Activate'}
             </button>
             <button
               onClick={onEdit}
