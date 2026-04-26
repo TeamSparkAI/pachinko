@@ -1,7 +1,7 @@
 {
   "name": "@teamsparkai/pachinko",
-  "version": "1.0.0",
-  "description": "Policy engine and web UI (webhook-fed MCP message filtering)",
+  "version": "1.0.1",
+  "description": "TeamSpark Pachinko - Policy engine for Arcade.dev",
   "main": "index.js",
   "types": "index.d.ts",
   "bin": {
