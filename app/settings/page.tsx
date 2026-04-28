@@ -5,6 +5,7 @@ import { AppSettingsApiResponse, AppSettingsData } from '@/lib/models/types/appS
 import EditArcadeHostModal from '@/app/components/EditArcadeHostModal';
 import EditRetentionSettingsModal from '@/app/components/EditRetentionSettingsModal';
 import { ApiKeysSection } from '@/app/components/ApiKeysSection';
+import { CopyButton } from '@/app/components/common/CopyButton';
 import { useModal } from '@/app/contexts/ModalContext';
 
 const ARCADE_PRE_PATH = '/api/v1/webhooks/arcade/pre';
@@ -110,14 +111,14 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="mx-auto flex h-full w-full max-w-6xl items-center justify-center">
         <div className="text-gray-500">Loading settings...</div>
       </div>
     );
   }
 
   return (
-    <div className="h-full p-6 space-y-6">
+    <div className="mx-auto h-full w-full max-w-6xl space-y-6">
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="text-red-800">Error: {error}</div>
@@ -146,19 +147,35 @@ export default function SettingsPage() {
           <div className="space-y-3">
             <div>
               <div className="text-sm text-gray-600 mb-1">Arcade pre-hook</div>
-              <code className="block text-sm font-mono bg-gray-100 rounded p-2 break-all text-gray-900">
-                {appSettings?.resolvedPublicBaseUrl
-                  ? `${appSettings.resolvedPublicBaseUrl}${ARCADE_PRE_PATH}`
-                  : '—'}
-              </code>
+              <div className="flex flex-wrap items-start gap-2">
+                <code className="block flex-1 min-w-0 text-sm font-mono bg-gray-100 rounded p-2 break-all text-gray-900">
+                  {appSettings?.resolvedPublicBaseUrl
+                    ? `${appSettings.resolvedPublicBaseUrl}${ARCADE_PRE_PATH}`
+                    : '—'}
+                </code>
+                {appSettings?.resolvedPublicBaseUrl ? (
+                  <CopyButton
+                    text={`${appSettings.resolvedPublicBaseUrl}${ARCADE_PRE_PATH}`}
+                    label="Copy"
+                  />
+                ) : null}
+              </div>
             </div>
             <div>
               <div className="text-sm text-gray-600 mb-1">Arcade post-hook</div>
-              <code className="block text-sm font-mono bg-gray-100 rounded p-2 break-all text-gray-900">
-                {appSettings?.resolvedPublicBaseUrl
-                  ? `${appSettings.resolvedPublicBaseUrl}${ARCADE_POST_PATH}`
-                  : '—'}
-              </code>
+              <div className="flex flex-wrap items-start gap-2">
+                <code className="block flex-1 min-w-0 text-sm font-mono bg-gray-100 rounded p-2 break-all text-gray-900">
+                  {appSettings?.resolvedPublicBaseUrl
+                    ? `${appSettings.resolvedPublicBaseUrl}${ARCADE_POST_PATH}`
+                    : '—'}
+                </code>
+                {appSettings?.resolvedPublicBaseUrl ? (
+                  <CopyButton
+                    text={`${appSettings.resolvedPublicBaseUrl}${ARCADE_POST_PATH}`}
+                    label="Copy"
+                  />
+                ) : null}
+              </div>
             </div>
             <p className="text-sm text-gray-600 pt-1">
               These webhooks require{' '}

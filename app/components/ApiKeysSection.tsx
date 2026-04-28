@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { JsonResponseFetch } from '@/lib/jsonResponse';
 import { useModal } from '@/app/contexts/ModalContext';
 import { useDialog } from '@/app/hooks/useDialog';
+import { CopyButton } from '@/app/components/common/CopyButton';
 
 type ApiKeyRow = {
   keyId: number;
@@ -14,27 +15,6 @@ type ApiKeyRow = {
 };
 
 type CreatedKey = ApiKeyRow & { bearerToken: string };
-
-function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
-  const [done, setDone] = useState(false);
-  return (
-    <button
-      type="button"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setDone(true);
-          setTimeout(() => setDone(false), 2000);
-        } catch {
-          /* ignore */
-        }
-      }}
-      className="px-3 py-1.5 text-sm font-medium bg-gray-200 text-gray-900 rounded hover:bg-gray-300"
-    >
-      {done ? 'Copied' : label}
-    </button>
-  );
-}
 
 function ApiKeyCreatedModal({
   displayName,
