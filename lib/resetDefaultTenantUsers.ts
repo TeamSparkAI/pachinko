@@ -1,4 +1,4 @@
-import { ModelFactory } from '@/lib/models';
+import { getModelFactory } from '@/lib/models';
 import { getDb } from '@/lib/models/sqlite/database';
 import { DEFAULT_TENANT_ID } from '@/lib/auth/constants';
 
@@ -7,7 +7,8 @@ import { DEFAULT_TENANT_ID } from '@/lib/auth/constants';
  * Used by `pachinko --admin-reset` so operators can re-open first-account signup at `/login`.
  */
 export async function resetDefaultTenantUsers(): Promise<number> {
-  await ModelFactory.getInstance().initialize();
+  const modelFactory = getModelFactory();
+  await modelFactory.initialize();
   const db = await getDb();
   const result = await db.execute('DELETE FROM users WHERE tenantId = ?', [DEFAULT_TENANT_ID]);
   return result.changes ?? 0;

@@ -4,7 +4,7 @@ import './loadEnv';
 import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
-import { ModelFactory } from '@/lib/models';
+import { getModelFactory } from '@/lib/models';
 import { getApiConfigPath } from '@/lib/utils/paths';
 import { removePachinkoAppData } from '@/lib/cleanAppData';
 import { resetDefaultTenantUsers } from '@/lib/resetDefaultTenantUsers';
@@ -137,7 +137,8 @@ async function start() {
     }
     
     // Initialize database through model factory
-    await ModelFactory.getInstance().initialize();
+    const modelFactory = getModelFactory();
+    await modelFactory.initialize();
 
     // Prepare Next.js
     const app = next({ dev: false, hostname, port: port, dir: __dirname }); // Point to the directory containing the executable

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { ModelFactory } from '@/lib/models';
+import { getModelFactory } from '@/lib/models';
 import { JsonResponse } from '@/lib/jsonResponse';
 import { logger } from '@/lib/logging/server';
 import { getApiTenantOr401 } from '@/lib/api/apiAuth';
@@ -13,12 +13,13 @@ export async function GET(
     try {
         const auth = await getApiTenantOr401(request);
         if (!auth.ok) return auth.response;
+        const modelFactory = getModelFactory();
         const alertId = parseInt(params.alertId, 10);
         if (isNaN(alertId)) {
             return JsonResponse.errorResponse(400, 'Invalid alert ID');
         }
 
-        const alertModel = await ModelFactory.getInstance().getAlertModel(auth.tenantId);
+        const alertModel = await modelFactory.getAlertModel(auth.tenantId);
         const alert = await alertModel.findById(alertId);
 
         if (!alert) {
@@ -39,6 +40,7 @@ export async function PATCH(
     try {
         const auth = await getApiTenantOr401(request);
         if (!auth.ok) return auth.response;
+        const modelFactory = getModelFactory();
         const alertId = parseInt(params.alertId, 10);
         if (isNaN(alertId)) {
             return JsonResponse.errorResponse(400, 'Invalid alert ID');
@@ -49,7 +51,7 @@ export async function PATCH(
             return JsonResponse.errorResponse(400, 'Missing or invalid seen status');
         }
 
-        const alertModel = await ModelFactory.getInstance().getAlertModel(auth.tenantId);
+        const alertModel = await modelFactory.getAlertModel(auth.tenantId);
         const alert = await alertModel.findById(alertId);
 
         if (!alert) {

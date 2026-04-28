@@ -1,4 +1,3 @@
-import { ModelFactory } from '../models';
 import { JSONRPCMessage } from '@modelcontextprotocol/sdk/types';
 import { JsonRpcMessageWrapper } from '@/lib/jsonrpc';
 import { MessageFilterContext } from '@/lib/types/messageFilterContext';
@@ -8,6 +7,7 @@ import { MessageActionData } from '@/lib/models/types/messageAction';
 import { logger } from '@/lib/logging/server';
 import { PolicyEngine } from '../policy-engine/core';
 import { DEFAULT_TENANT_ID } from '@/lib/auth/constants';
+import { getModelFactory } from '../models';
 
 export interface MessageFilterResult {
     success: boolean;
@@ -73,7 +73,8 @@ export async function applyPolicies(
     message: JsonRpcMessageWrapper,
     tenantId: number = DEFAULT_TENANT_ID
 ): Promise<JsonRpcMessageWrapper> {
-    const policyModel = await ModelFactory.getInstance().getPolicyModel(tenantId);
+    const modelFactory = getModelFactory();
+    const policyModel = await modelFactory.getPolicyModel(tenantId);
     const policies = await policyModel.list();
 
     const applicablePolicies = policies.filter((policy) => {
@@ -97,7 +98,7 @@ export async function applyPolicies(
     const result = await PolicyEngine.processMessage(messageData, message, applicablePolicies);
 
     const alertMap = new Map<string, AlertReadData>();
-    const alertModel = await ModelFactory.getInstance().getAlertModel(tenantId);
+    const alertModel = await modelFactory.getAlertModel(tenantId);
     for (const policyFinding of result.policyFindings) {
         for (const filterFinding of policyFinding.conditionFindings) {
             if (filterFinding.findings.length > 0) {
@@ -115,7 +116,7 @@ export async function applyPolicies(
     }
 
     const messageActions: MessageActionData[] = [];
-    const messageActionModel = await ModelFactory.getInstance().getMessageActionModel(tenantId);
+    const messageActionModel = await modelFactory.getMessageActionModel(tenantId);
     for (const policyAction of result.policyActions) {
         for (const actionResult of policyAction.actionResults) {
             for (const actionEvent of actionResult.actionEvents) {
@@ -155,7 +156,8 @@ export class MessageFilterService {
         tenantId: number = DEFAULT_TENANT_ID
     ): Promise<MessageFilterResult> {
         try {
-            const messageModel = await ModelFactory.getInstance().getMessageModel(tenantId);
+            const modelFactory = getModelFactory();
+            const messageModel = await modelFactory.getMessageModel(tenantId);
 
             let messageData: MessageData | null = null;
             if (message.origin === 'server' && message.messageId) {

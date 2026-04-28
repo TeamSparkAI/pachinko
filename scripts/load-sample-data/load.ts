@@ -1,13 +1,14 @@
 import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { MessageFilterContext } from "@/lib/types/messageFilterContext";
-import { ModelFactory } from "../../lib/models";
+import { getModelFactory } from "../../lib/models";
 import { logger } from "@/lib/logging/server";
 import { processMessages } from "./process-messages";
 
 async function loadSampleData() {
     try {
-        await ModelFactory.getInstance().initialize();
+        const modelFactory = getModelFactory();
+        await modelFactory.initialize();
 
         const dataDir = join(__dirname, "data");
         const messagesDir = join(dataDir, "messages");
@@ -90,7 +91,7 @@ async function loadSampleData() {
         logger.info(`Loaded ${totalMessageCount} messages from ${totalFiles} file runs`);
 
         logger.debug("Running ANALYZE to optimize query performance...");
-        await ModelFactory.getInstance().analyze();
+        await modelFactory.analyze();
         logger.debug("ANALYZE completed");
 
         process.exit(0);

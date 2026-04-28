@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ModelFactory } from '@/lib/models';
+import { getModelFactory } from '@/lib/models';
 import { logger } from '@/lib/logging/server';
 import type { AppSettingsApiResponse, AppSettingsData } from '@/lib/models/types/appSettings';
 import { normalizeExternalBaseUrl, resolvePublicBaseUrlFromRequest } from '@/lib/utils/publicBaseUrl';
@@ -11,7 +11,8 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await getApiTenantOr401(request);
     if (!auth.ok) return auth.response;
-    const appSettingsModel = await ModelFactory.getInstance().getAppSettingsModel(auth.tenantId);
+    const modelFactory = getModelFactory();
+    const appSettingsModel = await modelFactory.getAppSettingsModel(auth.tenantId);
     const settings = await appSettingsModel.get();
     const configured = normalizeExternalBaseUrl(settings.externalBaseUrl);
     const resolvedPublicBaseUrl = configured || resolvePublicBaseUrlFromRequest(request);
@@ -27,7 +28,8 @@ export async function PUT(request: NextRequest) {
   try {
     const auth = await getApiTenantOr401(request);
     if (!auth.ok) return auth.response;
-    const appSettingsModel = await ModelFactory.getInstance().getAppSettingsModel(auth.tenantId);
+    const modelFactory = getModelFactory();
+    const appSettingsModel = await modelFactory.getAppSettingsModel(auth.tenantId);
     const raw = (await request.json()) as Record<string, unknown>;
     const data: AppSettingsData = {
       messageRetentionDays:

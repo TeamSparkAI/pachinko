@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { ModelFactory } from '@/lib/models';
+import { getModelFactory } from '@/lib/models';
 import { JsonResponse } from '@/lib/jsonResponse';
 import { logger } from '@/lib/logging/server';
 import { getApiTenantOr401 } from '@/lib/api/apiAuth';
@@ -13,12 +13,13 @@ export async function GET(
     try {
         const auth = await getApiTenantOr401(request);
         if (!auth.ok) return auth.response;
+        const modelFactory = getModelFactory();
         const messageId = parseInt(params.messageId, 10);
         if (isNaN(messageId)) {
             return JsonResponse.errorResponse(400, 'Invalid message ID');
         }
 
-        const messageActionModel = await ModelFactory.getInstance().getMessageActionModel(auth.tenantId);
+        const messageActionModel = await modelFactory.getMessageActionModel(auth.tenantId);
         const messageAction = await messageActionModel.findByMessageId(messageId);
 
         if (!messageAction) {

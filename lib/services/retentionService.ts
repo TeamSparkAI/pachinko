@@ -1,4 +1,4 @@
-import { ModelFactory } from '../models';
+import { getModelFactory } from '../models';
 
 export interface RetentionStats {
     messagesDeleted: number;
@@ -39,11 +39,12 @@ export class RetentionService {
         };
 
         try {
-            const appSettings = await ModelFactory.getInstance().getAppSettingsModel(tenantId);
+            const modelFactory = getModelFactory();
+            const appSettings = await modelFactory.getAppSettingsModel(tenantId);
             const settings = await appSettings.get();
             
-            const alertModel = await ModelFactory.getInstance().getAlertModel(tenantId);
-            const messageModel = await ModelFactory.getInstance().getMessageModel(tenantId);
+            const alertModel = await modelFactory.getAlertModel(tenantId);
+            const messageModel = await modelFactory.getMessageModel(tenantId);
 
             // Step 1: Delete old alerts
             const alertRetentionDate = new Date();
@@ -78,11 +79,12 @@ export class RetentionService {
         messagesWithAlerts: number;
     }> {
         try {
-            const appSettings = await ModelFactory.getInstance().getAppSettingsModel(tenantId);
+            const modelFactory = getModelFactory();
+            const appSettings = await modelFactory.getAppSettingsModel(tenantId);
             const settings = await appSettings.get();
             
-            const alertModel = await ModelFactory.getInstance().getAlertModel(tenantId);
-            const messageModel = await ModelFactory.getInstance().getMessageModel(tenantId);
+            const alertModel = await modelFactory.getAlertModel(tenantId);
+            const messageModel = await modelFactory.getMessageModel(tenantId);
 
             const alertRetentionDate = new Date();
             alertRetentionDate.setDate(alertRetentionDate.getDate() - settings.alertRetentionDays);

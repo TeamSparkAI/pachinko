@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { JsonResponse } from "@/lib/jsonResponse";
-import { ModelFactory } from "@/lib/models";
+import { getModelFactory } from "@/lib/models";
 import { getApiTenantOr401 } from "@/lib/api/apiAuth";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
     try {
         const auth = await getApiTenantOr401(request);
         if (!auth.ok) return auth.response;
+        const modelFactory = getModelFactory();
         const { searchParams } = new URL(request.url);
         const dimRaw = searchParams.get("dimension") || "";
         const dimension = DIMENSION_ALIASES[dimRaw] || dimRaw;
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
             return JsonResponse.errorResponse(400, "Missing required parameters");
         }
 
-        const messageModel = await ModelFactory.getInstance().getMessageModel(auth.tenantId);
+        const messageModel = await modelFactory.getMessageModel(auth.tenantId);
         const data = await messageModel.timeSeries(params);
 
         const response: MessageTimeSeriesPayload = {

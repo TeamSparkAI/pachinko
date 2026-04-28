@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { ModelFactory } from '@/lib/models';
+import { getModelFactory } from '@/lib/models';
 import { JsonResponse } from '@/lib/jsonResponse';
 import { logger } from '@/lib/logging/server';
 import { ConditionRegistry } from '@/lib/policy-engine/conditions/registry/ConditionRegistry';
@@ -15,6 +15,7 @@ export async function POST(
     try {
         const auth = await getApiTenantOr401(request);
         if (!auth.ok) return auth.response;
+        const modelFactory = getModelFactory();
         const configId = parseInt(params.configId, 10);
         if (isNaN(configId)) {
             return JsonResponse.errorResponse(400, 'Invalid configId');
@@ -23,7 +24,7 @@ export async function POST(
         const body = await request.json();
         const { config } = body;
 
-        const policyElementModel = await ModelFactory.getInstance().getPolicyElementModel(auth.tenantId);
+        const policyElementModel = await modelFactory.getPolicyElementModel(auth.tenantId);
         const element = await policyElementModel.findById(configId);
         
         if (!element) {

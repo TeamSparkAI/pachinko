@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { JsonResponse } from "@/lib/jsonResponse";
-import { ModelFactory } from "@/lib/models";
+import { getModelFactory } from "@/lib/models";
 import { logger } from "@/lib/logging/server";
 import { getApiTenantOr401 } from "@/lib/api/apiAuth";
 
@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
     try {
         const auth = await getApiTenantOr401(request);
         if (!auth.ok) return auth.response;
+        const modelFactory = getModelFactory();
         const { searchParams } = new URL(request.url);
         const params: AlertTimeSeriesParams = {
             dimension: searchParams.get("dimension") as Dimension,
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
             return JsonResponse.errorResponse(400, "Missing required parameters");
         }
 
-        const alertModel = await ModelFactory.getInstance().getAlertModel(auth.tenantId);
+        const alertModel = await modelFactory.getAlertModel(auth.tenantId);
         const data = await alertModel.timeSeries(params);
 
         const response: AlertTimeSeriesPayload = {

@@ -18,7 +18,7 @@ alwaysApply: true
 - Use abstract base classes for models (e.g., ServerModel, PolicyModel)
 - Implement SQLite-specific models in sqlite/ subdirectory
 - Always deserialize JSON fields from database (config, filters)
-- Use ModelFactory singleton pattern for model access
+- Use `getModelFactory()` from `@/lib/models` (returns `IModelFactory`); only `lib/models/index.ts` should choose the concrete implementation (e.g. SQLite).
 - Use proper TypeScript interfaces for model data structures
 
 ## API Design

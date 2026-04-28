@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { JsonResponse } from "@/lib/jsonResponse";
-import { ModelFactory } from "@/lib/models";
+import { getModelFactory } from "@/lib/models";
 import { logger } from "@/lib/logging/server";
 import { getApiTenantOr401 } from "@/lib/api/apiAuth";
 
@@ -10,7 +10,8 @@ export async function GET(request: NextRequest) {
     try {
         const auth = await getApiTenantOr401(request);
         if (!auth.ok) return auth.response;
-        const messageModel = await ModelFactory.getInstance().getMessageModel(auth.tenantId);
+        const modelFactory = getModelFactory();
+        const messageModel = await modelFactory.getMessageModel(auth.tenantId);
         const url = new URL(request.url);
         const sort = (url.searchParams.get("sort") || "desc") as "asc" | "desc";
         const limit = 20;

@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server';
 import { GET } from './route';
 import { StatusCodes } from 'http-status-codes';
 import { JsonResponse } from '@/lib/jsonResponse';
-import { ModelFactory } from '@/lib/models';
+import { getModelFactory } from '@/lib/models';
 import { SqliteMessageModel } from '@/lib/models/sqlite/message';
 
 jest.mock('@/lib/api/apiAuth', () => ({
@@ -14,11 +14,9 @@ jest.mock('@/lib/api/apiAuth', () => ({
 
 // Mock the model factory
 jest.mock('@/lib/models', () => ({
-  ModelFactory: {
-    getInstance: jest.fn().mockReturnValue({
-      getMessageModel: jest.fn()
-    })
-  }
+  getModelFactory: jest.fn().mockReturnValue({
+    getMessageModel: jest.fn()
+  })
 }));
 
 describe('Messages API', () => {
@@ -35,7 +33,7 @@ describe('Messages API', () => {
       timeSeries: jest.fn(),
       aggregate: jest.fn()
     } as any;
-    (ModelFactory.getInstance().getMessageModel as jest.Mock).mockResolvedValue(mockMessageModel);
+    (getModelFactory().getMessageModel as jest.Mock).mockResolvedValue(mockMessageModel);
   });
 
   it('should return messages with default pagination', async () => {

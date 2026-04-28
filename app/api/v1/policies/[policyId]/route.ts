@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { ModelFactory } from '@/lib/models';
+import { getModelFactory } from '@/lib/models';
 import { JsonResponse } from '@/lib/jsonResponse';
 import { logger } from '@/lib/logging/server';
 import { getApiTenantOr401 } from '@/lib/api/apiAuth';
@@ -13,7 +13,8 @@ export async function GET(
   try {
     const auth = await getApiTenantOr401(request);
     if (!auth.ok) return auth.response;
-    const policyModel = await ModelFactory.getInstance().getPolicyModel(auth.tenantId);
+    const modelFactory = getModelFactory();
+    const policyModel = await modelFactory.getPolicyModel(auth.tenantId);
     const policy = await policyModel.findById(parseInt(params.policyId, 10));
     if (!policy) {
       return JsonResponse.errorResponse(404, 'Policy not found');
@@ -32,7 +33,8 @@ export async function PUT(
   try {
     const auth = await getApiTenantOr401(request);
     if (!auth.ok) return auth.response;
-    const policyModel = await ModelFactory.getInstance().getPolicyModel(auth.tenantId);
+    const modelFactory = getModelFactory();
+    const policyModel = await modelFactory.getPolicyModel(auth.tenantId);
     const data = await request.json();
     const policy = await policyModel.update(parseInt(params.policyId, 10), data);
     return JsonResponse.payloadResponse('policy', policy);
@@ -49,7 +51,8 @@ export async function DELETE(
   try {
     const auth = await getApiTenantOr401(request);
     if (!auth.ok) return auth.response;
-    const policyModel = await ModelFactory.getInstance().getPolicyModel(auth.tenantId);
+    const modelFactory = getModelFactory();
+    const policyModel = await modelFactory.getPolicyModel(auth.tenantId);
     const deleted = await policyModel.delete(parseInt(params.policyId, 10));
 
     if (!deleted) {

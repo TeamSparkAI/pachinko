@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { ModelFactory } from '@/lib/models';
+import { getModelFactory } from '@/lib/models';
 import { JsonResponse } from '@/lib/jsonResponse';
 import { logger } from '@/lib/logging/server';
 import { ConditionRegistry } from '@/lib/policy-engine/conditions/registry/ConditionRegistry';
@@ -15,12 +15,13 @@ export async function GET(
   try {
     const auth = await getApiTenantOr401(request);
     if (!auth.ok) return auth.response;
+    const modelFactory = getModelFactory();
     const configId = parseInt(params.configId, 10);
     if (isNaN(configId)) {
       return JsonResponse.errorResponse(400, 'Invalid configId');
     }
 
-    const policyElementModel = await ModelFactory.getInstance().getPolicyElementModel(auth.tenantId);
+    const policyElementModel = await modelFactory.getPolicyElementModel(auth.tenantId);
     const element = await policyElementModel.findById(configId);
 
     if (!element) {
@@ -41,6 +42,7 @@ export async function PUT(
   try {
     const auth = await getApiTenantOr401(request);
     if (!auth.ok) return auth.response;
+    const modelFactory = getModelFactory();
     const configId = parseInt(params.configId, 10);
     if (isNaN(configId)) {
       return JsonResponse.errorResponse(400, 'Invalid configId');
@@ -57,7 +59,7 @@ export async function PUT(
       return JsonResponse.errorResponse(400, 'No valid fields to update');
     }
 
-    const policyElementModel = await ModelFactory.getInstance().getPolicyElementModel(auth.tenantId);
+    const policyElementModel = await modelFactory.getPolicyElementModel(auth.tenantId);
 
     if (updateData.config !== undefined) {
       const existingElement = await policyElementModel.findById(configId);
@@ -97,12 +99,13 @@ export async function DELETE(
   try {
     const auth = await getApiTenantOr401(request);
     if (!auth.ok) return auth.response;
+    const modelFactory = getModelFactory();
     const configId = parseInt(params.configId, 10);
     if (isNaN(configId)) {
       return JsonResponse.errorResponse(400, 'Invalid configId');
     }
 
-    const policyElementModel = await ModelFactory.getInstance().getPolicyElementModel(auth.tenantId);
+    const policyElementModel = await modelFactory.getPolicyElementModel(auth.tenantId);
     const deleted = await policyElementModel.delete(configId);
 
     if (!deleted) {
